@@ -10,7 +10,7 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 cd "$root"
 
-artwork=primary
+artwork=alternate
 scene_args=()
 while (($#)); do
 	case "$1" in
@@ -27,7 +27,7 @@ while (($#)); do
 done
 set -- "${scene_args[@]}"
 
-scenes=(wallpaper prompt driving wanted escaping recovery wasted restart money-bag hospital billing billing-in billing-out police jackpot gold fleet traffic crossing billboard police-station gas-station police-crash cheri-selftest wasted-fade wasted-monochrome source-qr)
+scenes=(wallpaper prompt driving wanted escaping recovery wasted restart money-bag hospital billing billing-in billing-out police jackpot gold fleet traffic crossing billboard police-station gas-station police-crash cheri-selftest wasted-fade wasted-monochrome source-qr demo-wasted)
 if [[ "${1:-}" == "--all" && $# == 1 ]]; then
 	for scene in "${scenes[@]}"; do
 		"$root/tools/sim-test" --artwork "$artwork" "$scene"
@@ -46,7 +46,7 @@ if (($# <= 1)); then
 	done
 fi
 if ((scene_id == 0)); then
-	echo "Usage: tools/sim-test [--artwork primary|alternate] [--all|wallpaper|prompt|driving|wanted|escaping|recovery|wasted|restart|money-bag|hospital|billing|billing-in|billing-out|police|jackpot|gold|fleet|traffic|crossing|billboard|police-station|gas-station|police-crash|cheri-selftest|wasted-fade|wasted-monochrome|source-qr]" >&2
+	echo "Usage: tools/sim-test [--artwork primary|alternate] [--all|wallpaper|prompt|driving|wanted|escaping|recovery|wasted|restart|money-bag|hospital|billing|billing-in|billing-out|police|jackpot|gold|fleet|traffic|crossing|billboard|police-station|gas-station|police-crash|cheri-selftest|wasted-fade|wasted-monochrome|source-qr|demo-wasted]" >&2
 	exit 2
 fi
 

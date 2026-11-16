@@ -28,6 +28,15 @@ resetting progress, including during play. Artwork selection survives runs
 and soft resets; a power reset (or browser reload) restores the build's
 initial selection. Focus loss pauses the browser and clears held keys.
 
+Left-click the title canvas, or use the centre press (Space/Enter), to start
+**demo mode**. A scripted run collects money, exercises road protection,
+earns five stars through actual vehicle collisions and then reaches WASTED.
+The end screen stays for **10 seconds**, including the full monochrome and
+purple-light fade, before another run starts. Any fresh direction, centre
+press or canvas click stops the demo and returns to the title; demo rewards
+are discarded and the selected artwork is retained. The demo uses normal
+collision and CHERIoT denial paths, not fabricated stars or fault records.
+
 - Steer through cars, trucks, buses and trailers; collect cash and gold.
 - Vehicle collisions build wanted stars. Police appear from three stars,
   aim once per pass, and can explode on collisions. Police hits are fatal
@@ -71,8 +80,9 @@ enabled, then run:
 Open the loopback address printed by the tool. `--port 8001` changes the port;
 `--build-only` creates static files in `build/game-preview` without a server.
 The preview remains loopback-only; no firewall changes are needed.
-`--artwork primary` (the default) or `--artwork alternate` selects the initial
-artwork; both are available through the runtime artwork button and title menu.
+The newer Claude-generated `alternate` image is the default.
+`--artwork primary` selects the older image initially; both remain available
+through the compact **switch artwork** button and title-menu Down input.
 
 ```sh
 ./tools/check-browser
@@ -127,16 +137,21 @@ operator-specific directory layout.
 ./tools/sim-test wasted-fade
 ./tools/sim-test wasted-monochrome
 ./tools/sim-test source-qr
+./tools/sim-test demo-wasted
 ./tools/sim-test --all
 ```
 
-Each scene builds in `build/sim-firmware/<scene>` without a UF2, runs the
+Each scene builds without a UF2, runs the
 Sonata RTL simulator in a private network namespace, and compares all 20,480
 LCD pixels with the native renderer. Linux must permit unprivileged user and
-network namespaces. Outputs are under `build/sim/<scene>`.
+network namespaces. The newer default artwork uses
+`build/sim-firmware/alternate/<scene>` and `build/sim/alternate/<scene>`;
+explicit `primary` builds retain paths without `alternate/`.
 The two WASTED fixtures freeze the shared color/LED fade at its midpoint and
 completed monochrome frame.
 `source-qr` additionally decodes the rendered QR to verify the source URL.
+`demo-wasted` drives the actual attract sequence to five stars and freezes its
+monochrome end screen just before the 10-second hold completes.
 
 `cheri-selftest` exercises actual tag, bounds and store-permission faults,
 all road widths, repeated recovery, grant-retention and wrong-cause controls,
@@ -148,6 +163,18 @@ normal hardware build configuration afterward.
 The simulator uses scripted input, not a live joystick. Physical controls,
 electrical behavior, LCD timing and physical-board CHERI execution still need
 board testing.
+
+## Credits
+
+Thanks to lowRISC contributors for the
+[Sonata example/demo suite](https://github.com/lowRISC/sonata-software/tree/v1.3/examples)
+and its [CHERI Snake game](https://github.com/lowRISC/sonata-software/blob/v1.3/examples/snake/snake.cc).
+The demos provide board/UI references; Snake is an earlier demonstration of
+capability faults used as gameplay events. This project also builds on
+[CHERIoT RTOS](https://github.com/CHERIoT-Platform/cheriot-rtos) and Sonata's
+display-driver support. Upstream work keeps its original licenses, including
+Apache-2.0 for the Sonata examples; project notices do not relicense it or
+imply endorsement.
 
 ## Artwork and licenses
 

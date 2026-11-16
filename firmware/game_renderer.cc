@@ -723,6 +723,13 @@ namespace
 				             0xffe0);
 			}
 		}
+		if (game.demoActive && game.phase == Phase::Playing)
+		{
+			constexpr char Demo[] = "DEMO - PRESS TO STOP";
+			const int width = small_text_width(Demo);
+			rect((Width - width) / 2 - 2, Height - 17, width + 4, 7, Black);
+			small_text(Demo, (Width - width) / 2, Height - 16, White);
+		}
 		protection_status(game);
 		stars(game);
 		damage_meter(game);
@@ -753,11 +760,12 @@ namespace driving
 			{
 				pixels[i] = wallpaper[i];
 			}
-			const char *prompts[] = {"RIGHT: PLAY STORY MODE", "DOWN: CHANGE ARTWORK"};
-			for (int line = 0; line < 2; ++line)
+			const char *prompts[] = {
+			  "RIGHT: PLAY STORY MODE", "DOWN: CHANGE ARTWORK", "PRESS: DEMO"};
+			for (int line = 0; line < 3; ++line)
 			{
 				const int x = (Width - small_text_width(prompts[line])) / 2;
-				const int y = Height - 15 + line * 8;
+				const int y = Height - 23 + line * 8;
 				small_text(prompts[line], x + 1, y + 1, Black);
 				small_text(prompts[line], x, y, White);
 			}
@@ -793,7 +801,7 @@ namespace driving
 				     Black,
 				     2);
 				text("WASTED", (Width - 70) / 2, (Height - 14) / 2, Red, 2);
-				constexpr char Next[] = "PRESS FOR THE DAMAGE";
+				const char *Next = game.demoActive ? "PRESS TO STOP DEMO" : "PRESS FOR THE DAMAGE";
 				small_text(Next,
 				           (Width - small_text_width(Next)) / 2,
 				           Height - 16,

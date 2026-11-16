@@ -18,7 +18,8 @@
       .indicator-bank { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
       .indicator-bank span { min-width: 38px; padding: 5px; border-radius: 5px; background: #30303f; color: #999; font-size: 10px; }
       .indicator-bank .on { background: #7aff90; color: #102016; box-shadow: 0 0 5px #7aff90; }
-      button { margin: 12px 4px 4px; padding: 8px 12px; cursor: pointer; }
+      #artwork-toggle { margin: 8px 4px 4px; padding: 3px 8px; font-size: 12px; line-height: 1.2; cursor: pointer; }
+      #artwork-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
       p { line-height: 1.5; color: #c9c9d5; }
       #status[data-error] { color: #ff9b9b; }
     </style>
@@ -28,7 +29,7 @@
       <h1>Grand Time Auto</h1>
       <canvas id="lcd" width="128" height="160" tabindex="0" aria-label="Portrait driving game. On the title screen, Right plays and Down changes artwork. Arrow keys drive; Space or Enter presses the joystick."></canvas>
       <div>
-        <button id="artwork-toggle" type="button" aria-controls="lcd" disabled>Switch title artwork</button>
+        <button id="artwork-toggle" type="button" aria-controls="lcd" disabled>switch artwork</button>
         <span id="artwork-name" role="status"></span>
       </div>
       <div id="leds" role="group" aria-label="Onboard user LEDs, 7 to 0">
@@ -57,6 +58,7 @@
         <span role="img" data-cheri="8" data-name="Permit access system registers" title="Permit access system registers">SYS REG</span>
       </div>
       <p>Title: Right plays story mode &middot; Down changes artwork<br>
+        Click the title canvas or press the joystick for a looping demo; input stops it.<br>
         Arrow keys: drive &middot; Space / Enter: press<br>
         Car hits build yellow heat into red stars. Green flashing means you are escaping.<br>
         Denser traffic includes trucks, buses, and trailers. Police arrive at three stars and aim only once per pass.<br>
@@ -69,6 +71,10 @@
         generated using Claude (owner-supplied provenance) &middot;
         <a href="artwork-license.txt" rel="license">CC BY 4.0 and attribution</a> &middot;
         <a href="code-license.txt" rel="license">MIT code license</a></p>
+      <p>Thanks to lowRISC contributors for the
+        <a href="https://github.com/lowRISC/sonata-software/tree/v1.3/examples" target="_blank" rel="noopener noreferrer">Sonata demos</a>
+        and <a href="https://github.com/lowRISC/sonata-software/blob/v1.3/examples/snake/snake.cc" target="_blank" rel="noopener noreferrer">CHERI Snake game</a>,
+        and to the <a href="https://github.com/CHERIoT-Platform/cheriot-rtos" target="_blank" rel="noopener noreferrer">CHERIoT RTOS contributors</a>.</p>
       <p id="protection-mode">CHERI protection is <strong>EMULATED</strong> in this browser.
         The CHERIoT firmware uses real capability faults.
         T/B/W count blocked tag, boundary, and wallet accesses.

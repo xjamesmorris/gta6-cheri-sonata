@@ -37,6 +37,23 @@ namespace driving::test
 			game.advance(0, Left);
 			return game.phase == Phase::SourceQr;
 		}
+		if (scene == 28)
+		{
+			game.advance(0, Press);
+			for (uint32_t elapsed = 0; elapsed < 30'000 && game.phase == Phase::Playing;
+			     elapsed += TickMs)
+			{
+				game.advance(TickMs, 0);
+			}
+			if (game.phase != Phase::Wasted || game.stars != 5 ||
+			    game.money != MoneyBagValue || game.protection.failed())
+			{
+				return false;
+			}
+			game.advance(DemoEndMs - 1, 0);
+			return game.demoActive && game.phase == Phase::Wasted &&
+			       game.protection.roadDenials > 0 && game.protection.walletDenials > 0;
+		}
 		game.advance(0, Right);
 		if (scene == 24)
 		{

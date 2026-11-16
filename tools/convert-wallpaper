@@ -3,7 +3,7 @@
 """Convert the Grand Time Auto parody wallpaper into a Sonata RGB565 header.
 
 By default:
-  1. Reads artwork/gta6-8bit-01.png (primary) or gta6-alternate-01.png.
+  1. Reads the newer artwork/gta6-alternate-01.png.
   2. Center-crops the design to fill the 128x160 panel.
   3. Uses 32 colors and crisp 2x2 pixels, keeping the supplied lettering.
   4. Emits little-endian RGB565 bytes without dithering.
@@ -197,8 +197,8 @@ def main() -> None:
     source.add_argument(
         "--artwork",
         choices=tuple(artworks),
-        default="primary",
-        help="Project artwork to convert (default: primary)",
+        default="alternate",
+        help="Project artwork to convert (default: alternate)",
     )
     source.add_argument(
         "--input",

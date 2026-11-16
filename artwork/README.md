@@ -5,8 +5,8 @@ The **Grand Time Auto project** supplies and licenses both images below under
 
 | Selection | Source image | Dimensions | Owner-supplied provenance |
 | --- | --- | --- | --- |
-| `primary` (default) | `artwork/gta6-8bit-01.png` | 941×1672 | Supplied and licensed by the project owner |
-| `alternate` | `artwork/gta6-alternate-01.png` | 750×956 | Identified by the owner as independent and **generated using Claude** |
+| `primary` | `artwork/gta6-8bit-01.png` | 941×1672 | Supplied and licensed by the project owner |
+| `alternate` (newer, default) | `artwork/gta6-alternate-01.png` | 750×956 | Identified by the owner as independent and **generated using Claude** |
 
 Only the alternate has the Claude-generation credit. These statements record
 owner-supplied provenance and licensing, **not an independent rights audit**.

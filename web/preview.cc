@@ -21,6 +21,11 @@ extern "C"
 		return game.alternateArtwork;
 	}
 
+	uint32_t preview_demo_active()
+	{
+		return game.demoActive;
+	}
+
 	void preview_toggle_artwork()
 	{
 		game.change_artwork();

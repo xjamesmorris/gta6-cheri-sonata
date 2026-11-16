@@ -110,7 +110,7 @@ class BrowserTests(unittest.TestCase):
             "primary": "wallpaper_image.h",
             "alternate": "wallpaper_image_alternate.h",
         }
-        selection = os.environ.get("GTA6_TEST_ARTWORK", "primary")
+        selection = os.environ.get("GTA6_TEST_ARTWORK", "alternate")
         self.assertIn(selection, headers)
         header = (ROOT / "firmware" / headers[selection]).read_text()
         expected = bytes(int(value, 16) for value in re.findall(r"0x([0-9a-fA-F]{2})", header))
@@ -457,7 +457,13 @@ class BrowserTests(unittest.TestCase):
         self.open_preview()
         self.advance(200, 30)
         original = self.page.evaluate("drivingPreview.module._preview_artwork()")
-        self.page.locator("#artwork-toggle").click()
+        button = self.page.locator("#artwork-toggle")
+        self.assertEqual(button.inner_text(), "switch artwork")
+        size = button.bounding_box()
+        self.assertLessEqual(size["width"], 140)
+        self.assertLessEqual(size["height"], 32)
+        button.click()
+        self.assertEqual(button.inner_text(), "switch artwork")
         self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), 1 - original)
         self.assertEqual(self.state()[0], 1)
         header_name = "wallpaper_image_alternate.h" if not original else "wallpaper_image.h"
@@ -472,7 +478,7 @@ class BrowserTests(unittest.TestCase):
         self.page.keyboard.press("ArrowDown")
         self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), original)
         self.assertEqual(self.state()[0], 2)
-        self.page.keyboard.press("Enter")
+        self.page.keyboard.press("ArrowUp")
         self.assertEqual(self.state()[0], 2)
         self.page.keyboard.down("ArrowLeft")
         self.assertEqual(self.state()[0], 6)
@@ -493,6 +499,39 @@ class BrowserTests(unittest.TestCase):
         self.page.locator("#artwork-toggle").click()
         self.assertEqual(self.state(), before)
         self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), 1 - original)
+
+    def test_demo_loop_and_cancellation(self):
+        self.open_preview()
+        self.advance(200, 45)
+        self.page.locator("#lcd").click()
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 1)
+        self.assertEqual(self.state()[0], 3)
+        five_star_frames = 0
+        for _ in range(150):
+            self.advance(200)
+            if self.state()[1] == 5 and self.state()[0] == 3:
+                five_star_frames += 1
+            if self.state()[0] == 4:
+                break
+        self.assertGreaterEqual(five_star_frames, 4)
+        self.assertEqual(self.state()[:2], [4, 5])
+        self.assertEqual(self.state()[4], 1000)
+        self.assertGreater(self.page.evaluate("drivingPreview.module._preview_wallet_denials()"), 0)
+        self.screenshot("demo-wasted")
+        self.advance(200, 49)
+        self.assertEqual(self.state()[0], 4)
+        self.advance(200)
+        self.assertEqual(self.state()[:2], [3, 0])
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 1)
+        self.page.keyboard.press("Space")
+        self.assertEqual(self.state()[0], 2)
+        self.assertEqual(self.state()[4], 0)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 0)
+        self.page.keyboard.press("Enter")
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 1)
+        self.page.locator("#lcd").click()
+        self.assertEqual(self.state()[0], 2)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 0)
 
     def test_pages_project_subpath_and_notices(self):
         staging = tempfile.TemporaryDirectory(dir=ROOT / "build")

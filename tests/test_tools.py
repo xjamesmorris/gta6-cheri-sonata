@@ -463,7 +463,7 @@ project = pathlib.Path(sys.argv[1]).resolve().parent.parent
 (project / "build").mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
     output = pathlib.Path(tmp) / "wallpaper.h"
-    subprocess.run([sys.executable, sys.argv[1], "--output", str(output)],
+    subprocess.run([sys.executable, sys.argv[1], "--artwork", "primary", "--output", str(output)],
                    check=True, capture_output=True, text=True)
     header = output.read_text()
     assert "SPDX-License-Identifier: CC-BY-4.0" in header
@@ -485,6 +485,9 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
     alternate_expected, _ = conv.quantize_rgb565(alternate_pixels, dither=False)
     assert bytes(int(x, 16) for x in re.findall(r"0x([0-9a-f]{2})", alternate_header)) == alternate_expected
     assert alternate_header != header
+    subprocess.run([sys.executable, sys.argv[1], "--output", str(output)],
+                   check=True, capture_output=True, text=True)
+    assert output.read_text() == alternate_header
     for selection in ("primary", "alternate"):
         subprocess.run([sys.executable, sys.argv[1], "--artwork", selection, "--check"],
                        check=True, capture_output=True, text=True)

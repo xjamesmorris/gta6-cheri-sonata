@@ -17,13 +17,13 @@ option("board")
 option_end()
 
 option("artwork")
-    set_default("primary")
+    set_default("alternate")
     set_values("primary", "alternate")
 option_end()
 
 option("game-scene")
     set_default("none")
-    set_values("none", "wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr")
+    set_values("none", "wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr", "demo-wasted")
 option_end()
 
 -- Emit a UF2 image ONLY for application slot 2 (base 0x10000000, family
@@ -71,7 +71,7 @@ compartment("wallpaper")
     add_files("firmware/game.cc", "firmware/game_renderer.cc", "firmware/protection_cheriot.cc", "firmware/protection_selftest.cc")
     on_load(function(target)
         import("core.project.config")
-        local artwork = config.get("artwork") or "primary"
+        local artwork = config.get("artwork") or "alternate"
         assert(artwork == "primary" or artwork == "alternate",
                "artwork must be primary or alternate")
         target:add("defines", "DRIVING_ARTWORK_" .. artwork:upper())
@@ -79,7 +79,7 @@ compartment("wallpaper")
         if scene ~= "none" then
             assert(config.get("board") == "sonata-simulator",
                    "game-scene fixtures require --board=sonata-simulator")
-            local scenes = {"wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr"}
+            local scenes = {"wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr", "demo-wasted"}
             for index, name in ipairs(scenes) do
                 if name == scene then
                     target:add("defines", "DRIVING_SIM_SCENE=" .. index)

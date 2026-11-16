@@ -82,8 +82,8 @@
       }
       context.putImageData(image, 0, 0);
       const alternate = module._preview_artwork() !== 0;
-      artworkName.textContent = alternate ? "Alternate artwork" : "Primary artwork";
-      artworkButton.textContent = alternate ? "Show primary artwork" : "Show alternate artwork";
+      const artworkLabel = alternate ? "Alternate artwork" : "Primary artwork";
+      if (artworkName.textContent !== artworkLabel) artworkName.textContent = artworkLabel;
       artworkButton.setAttribute("aria-pressed", String(alternate));
       const mask = module._preview_led_mask();
       for (const led of leds) {
@@ -167,7 +167,8 @@
     canvas.addEventListener("blur", clearInput);
     canvas.addEventListener("focus", clearInput);
     canvas.addEventListener("click", () => {
-      if (!stopped && module._preview_phase() === 6) {
+      if (!stopped && (module._preview_phase() === 2 ||
+                      module._preview_phase() === 6 || module._preview_demo_active())) {
         clearInput();
         module._preview_advance(0, 0);
         module._preview_advance(0, 16);
@@ -180,6 +181,10 @@
       if (stopped) return;
       clearInput();
       module._preview_advance(0, 0);
+      if (module._preview_demo_active()) {
+        module._preview_advance(0, 16);
+        module._preview_advance(0, 0);
+      }
       module._preview_toggle_artwork();
       canvas.focus();
       render();
