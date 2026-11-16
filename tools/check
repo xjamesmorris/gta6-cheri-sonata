@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+#
+# Build and host verification suite for gta6-wallpaper:
+#   1. convert-wallpaper --check (image header reproducible and up to date)
+#   2. clean firmware rebuild with zero compiler warnings from our files,
+#      and no .slot1.uf2 or .slot3.uf2 outputs
+#   3. cheriot-audit policy check (data.gta6_wallpaper.valid == true)
+#   4. check-slot2-uf2 check against stripped ELF
+#   5. Python unit & negative audit-mutation tests
+#   6. native C++ gameplay and rendering tests
+#
+# Touches no hardware.  Re-enters the pinned Nix shell automatically.
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+artwork=primary
+if [[ $# == 2 && "${1:-}" == "--artwork" ]]; then
+	artwork=$2
+elif (($# != 0)); then
+	echo "Usage: tools/check [--artwork primary|alternate]" >&2
+	exit 2
+fi
+case "$artwork" in
+	primary|alternate) ;;
+	*) echo "FAIL: artwork must be primary or alternate" >&2; exit 2 ;;
+esac
+if [[ -z "${GTA6_WALLPAPER_SHELL:-}" ]]; then
+	exec nix develop --accept-flake-config "$root" -c "$root/tools/check" "$@"
+fi
+: "${SONATA_SOFTWARE:?Set SONATA_SOFTWARE to a Sonata software checkout, or use the pinned Nix shell}"
+cd "$root"
+
+echo "==== 1. Image header checks (building $artwork)"
+for choice in primary alternate; do
+	./tools/convert-wallpaper --artwork "$choice" --check
+done
+./tools/generate-source-qr --check
+
+echo "==== 2. Clean firmware build"
+mkdir -p build/tools
+log=build/tools/build.log
+xmake f -y -o build --board=sonata-1.1 --game-scene=none --artwork="$artwork" </dev/null >/dev/null
+if ! xmake build --rebuild gta6_wallpaper </dev/null >"$log" 2>&1; then
+	cat "$log"
+	echo "FAIL: xmake build failed (see $log)" >&2
+	exit 1
+fi
+
+warnings=$(sed 's/\x1b\[[0-9;]*m//g' "$log" |
+	grep -E '^[^ :]+:[0-9]+:[0-9]+: warning:' | sort -u || true)
+ours=$(printf '%s\n' "$warnings" | grep -E "^($root/|[^/])" || true)
+if [[ -n "$ours" ]]; then
+	echo "FAIL: compiler warnings in repository files:" >&2
+	sed 's/^/  /' <<<"$ours" >&2
+	exit 1
+fi
+
+release=build/cheriot/cheriot/release
+for required in gta6_wallpaper gta6_wallpaper.json gta6_wallpaper.strip gta6_wallpaper.slot2.uf2; do
+	if [[ ! -s "$release/$required" ]]; then
+		echo "FAIL: missing build artifact $release/$required" >&2
+		exit 1
+	fi
+done
+
+wrong_uf2=$(find "$release" -maxdepth 1 -name '*.uf2' ! -name 'gta6_wallpaper.slot2.uf2')
+if [[ -n "$wrong_uf2" ]]; then
+	echo "FAIL: unexpected UF2 image(s) outside slot 2:" >&2
+	sed 's/^/  /' <<<"$wrong_uf2" >&2
+	exit 1
+fi
+echo "OK: built $release/gta6_wallpaper with zero warnings from repository files"
+python3 -B tools/check-protection-elf "$release/gta6_wallpaper.json"
+
+echo "==== 3. CHERIoT compartment & MMIO audit"
+audit_result=$(cheriot-audit \
+	--board "$SONATA_SOFTWARE/cheriot-rtos/sdk/boards/sonata-1.1.json" \
+	--module policy/gta6_wallpaper.rego \
+	--query data.gta6_wallpaper.valid \
+	--firmware-report "$release/gta6_wallpaper.json")
+if [[ "$audit_result" != "true" ]]; then
+	echo "FAIL: cheriot-audit returned '$audit_result' (expected 'true')" >&2
+	exit 1
+fi
+echo "OK: cheriot-audit data.gta6_wallpaper.valid == true"
+
+echo "==== 4. Slot-2 UF2 verification"
+./tools/check-slot2-uf2 "$release/gta6_wallpaper.slot2.uf2" "$release/gta6_wallpaper.strip"
+
+echo "==== 5. Tool & negative-policy unit tests"
+GTA6_TEST_ARTWORK="$artwork" python3 -B tests/test_tools.py
+
+echo "==== 6. Native game and renderer checks"
+g++ -std=c++20 -O2 -Wall -Wextra -Werror -Ifirmware -D"DRIVING_ARTWORK_${artwork^^}" \
+	firmware/game.cc firmware/game_renderer.cc firmware/protection_emulated.cc tests/test_game.cc \
+	-o build/tools/test_game
+build/tools/test_game
+
+echo "tools/check: ALL CHECKS PASSED"

@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+#
+# Boots gta6_wallpaper (built for --board=sonata-simulator in an isolated build
+# directory, with no UF2 output) in sonata-simulator inside a private network
+# namespace, captures a frozen scene, and compares every LCD pixel with the
+# native renderer. The default scene also checks the selected wallpaper bytes.
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+cd "$root"
+
+artwork=primary
+scene_args=()
+while (($#)); do
+	case "$1" in
+		--artwork)
+			if (($# < 2)) || [[ "$2" != "primary" && "$2" != "alternate" ]]; then
+				echo "FAIL: --artwork requires primary or alternate" >&2
+				exit 2
+			fi
+			artwork=$2
+			shift 2
+			;;
+		*) scene_args+=("$1"); shift ;;
+	esac
+done
+set -- "${scene_args[@]}"
+
+scenes=(wallpaper prompt driving wanted escaping recovery wasted restart money-bag hospital billing billing-in billing-out police jackpot gold fleet traffic crossing billboard police-station gas-station police-crash cheri-selftest wasted-fade wasted-monochrome source-qr)
+if [[ "${1:-}" == "--all" && $# == 1 ]]; then
+	for scene in "${scenes[@]}"; do
+		"$root/tools/sim-test" --artwork "$artwork" "$scene"
+	done
+	exit 0
+fi
+scene=${1:-wallpaper}
+scene_id=0
+if (($# <= 1)); then
+	index=0
+	for candidate in "${scenes[@]}"; do
+		index=$((index + 1))
+		if [[ "$scene" == "$candidate" ]]; then
+			scene_id=$index
+		fi
+	done
+fi
+if ((scene_id == 0)); then
+	echo "Usage: tools/sim-test [--artwork primary|alternate] [--all|wallpaper|prompt|driving|wanted|escaping|recovery|wasted|restart|money-bag|hospital|billing|billing-in|billing-out|police|jackpot|gold|fleet|traffic|crossing|billboard|police-station|gas-station|police-crash|cheri-selftest|wasted-fade|wasted-monochrome|source-qr]" >&2
+	exit 2
+fi
+
+scene_path=$scene
+image_header="$root/firmware/wallpaper_image.h"
+if [[ "$artwork" == "alternate" ]]; then
+	scene_path="alternate/$scene"
+	image_header="$root/firmware/wallpaper_image_alternate.h"
+fi
+sim_build="$root/build/sim-firmware/$scene_path"
+elf="$sim_build/cheriot/cheriot/release/gta6_wallpaper"
+
+restore_config() {
+	# shellcheck disable=SC2016
+	nix develop --accept-flake-config "$root" -c bash -c \
+		'xmake f -y -o build --board=sonata-1.1 --game-scene=none --artwork="$1" </dev/null >/dev/null' restore-config "$artwork"
+}
+trap restore_config EXIT
+echo "tools/sim-test: building $scene simulator ELF with $artwork artwork (no UF2)..."
+# shellcheck disable=SC2016
+nix develop --accept-flake-config "$root" -c bash -euc '
+	xmake f -y -o "$1" --board=sonata-simulator --game-scene="$3" --artwork="$5" </dev/null >/dev/null
+	xmake build --rebuild gta6_wallpaper </dev/null
+	g++ -std=c++20 -O2 -Wall -Wextra -Werror -Ifirmware -D"DRIVING_ARTWORK_${5^^}" \
+		firmware/game.cc firmware/game_renderer.cc firmware/protection_emulated.cc tests/render_scene.cc -o "$1/render_scene"
+	"$1/render_scene" "$4" "$1/expected.rgb565" "$1/expected.ppm" "$1/expected-protection.json"
+' sim-build "$sim_build" "$elf" "$scene" "$scene_id" "$artwork"
+
+# Restore default xmake config back to real hardware (build/, sonata-1.1) so
+# interactive xmake commands always target real hardware.
+restore_config
+trap - EXIT
+
+sim_uf2=$(find "$sim_build" -name '*.uf2' || true)
+if [[ -n "$sim_uf2" ]]; then
+	echo "FAIL: simulation build must not emit any UF2 image: $sim_uf2" >&2
+	exit 1
+fi
+
+rundir="$root/build/sim/$scene_path"
+mkdir -p "$rundir"
+rm -f "$rundir/uart0.log" "$rundir/lcd.ppm" "$rundir/simulator.pid"
+
+timeout_seconds=$((25 * 60))
+poll_seconds=5
+start_sec=$SECONDS
+simulator=""
+
+cleanup() {
+	if [[ -n "$simulator" ]] && kill -0 "$simulator" 2>/dev/null; then
+		kill -INT "$simulator" 2>/dev/null || true
+		for _ in 1 2 3 4 5; do
+			kill -0 "$simulator" 2>/dev/null || break
+			sleep 1
+		done
+		if kill -0 "$simulator" 2>/dev/null; then
+			kill -KILL "$simulator" 2>/dev/null || true
+		fi
+	fi
+}
+trap cleanup EXIT
+
+echo "tools/sim-test: launching sonata-simulator in private netns ($rundir)..."
+# shellcheck disable=SC2016
+nix develop --accept-flake-config "$root#sim" -c bash -c '
+	cd "$1" || exit 1
+	echo "$$" >simulator.pid
+	exec unshare --user --map-root-user --net -- \
+		sonata-simulator -E "$SONATA_SIM_BOOT_STUB" -E "$2"
+' sim-test "$rundir" "$elf" >"$rundir/simulator.out" 2>&1 &
+launcher=$!
+
+ready=false
+while ((SECONDS - start_sec < timeout_seconds)); do
+	if [[ -z "$simulator" && -s "$rundir/simulator.pid" ]]; then
+		simulator=$(<"$rundir/simulator.pid")
+	fi
+	if [[ -f "$rundir/uart0.log" ]]; then
+		clean_log=$(sed 's/\x1b\[[0-9;]*m//g' "$rundir/uart0.log" | tr -d '\r')
+		if grep -Fq 'FAIL:' "$rundir/simulator.out" "$rundir/uart0.log"; then
+			echo "FAIL: simulator reported an error before scene completion" >&2
+			printf '%s\n' "$clean_log" >&2
+			exit 1
+		fi
+		if grep -Fq "wallpaper: Scene ready $scene_id" <<<"$clean_log" &&
+			cmp -s "$rundir/lcd.ppm" "$sim_build/expected.ppm"; then
+			ready=true
+			break
+		fi
+	fi
+	if ! kill -0 "$launcher" 2>/dev/null; then
+		echo "FAIL: sonata-simulator exited unexpectedly:" >&2
+		cat "$rundir/simulator.out" >&2 || true
+		exit 1
+	fi
+	sleep "$poll_seconds"
+done
+
+cleanup
+wait "$launcher" 2>/dev/null || true
+simulator=""
+
+if [[ "$ready" != true ]]; then
+	echo "FAIL: timed out waiting for a complete matching $scene LCD snapshot" >&2
+	[[ -f "$rundir/uart0.log" ]] && cat "$rundir/uart0.log" >&2
+	exit 1
+fi
+
+if grep -Fq "FAIL:" "$rundir/simulator.out" "$rundir/uart0.log"; then
+	echo "FAIL: simulator reported a capability violation or scene failure" >&2
+	exit 1
+fi
+
+proof_args=()
+if [[ "$scene" == "cheri-selftest" ]]; then
+	proof_args+=(--exhaustive)
+fi
+python3 -B "$root/tools/check-protection-transcript" \
+	"$rundir/simulator.out" "$rundir/uart0.log" \
+	"$sim_build/expected-protection.json" "${proof_args[@]}"
+
+echo "==== Console output (uart0.log):"
+sed 's/\x1b\[[0-9;]*m//g' "$rundir/uart0.log" | tr -d '\r'
+
+if [[ ! -s "$rundir/lcd.ppm" ]]; then
+	echo "FAIL: $rundir/lcd.ppm missing or empty" >&2
+	exit 1
+fi
+
+"$root/tools/ppm2png" "$rundir/lcd.ppm" "$rundir/lcd-panel-128x160.png" 1
+"$root/tools/ppm2png" "$rundir/lcd.ppm" "$rundir/lcd-panel-scaled.png" 3
+if [[ "$scene" == "source-qr" ]]; then
+	"$root/tools/generate-source-qr" --check --verify-image "$rundir/lcd-panel-scaled.png"
+fi
+
+echo "==== Verifying all 128x160 pixels of $scene against the native renderer"
+python3 - "$rundir/lcd.ppm" "$sim_build/expected.rgb565" "$scene" "$image_header" <<'PY'
+import pathlib, re, sys
+
+ppm_path = pathlib.Path(sys.argv[1])
+expected_path = pathlib.Path(sys.argv[2])
+
+raw_ppm = ppm_path.read_bytes()
+m = re.match(rb"P6\s+(\d+)\s+(\d+)\s+(\d+)\s", raw_ppm)
+assert m, "invalid P6 header"
+w, h, maxv = (int(x) for x in m.groups())
+assert (w, h, maxv) == (128, 160, 63), (w, h, maxv)
+ppm_pixels = raw_ppm[m.end() : m.end() + w * h * 3]
+assert len(ppm_pixels) == w * h * 3
+
+hex_vals = expected_path.read_bytes()
+assert len(hex_vals) == w * h * 2, len(hex_vals)
+if sys.argv[3] == "wallpaper":
+    header = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8")
+    wallpaper = bytes(int(x, 16) for x in re.findall(r"0x([0-9a-fA-F]{2})", header))
+    assert hex_vals == wallpaper, "pristine wallpaper scene must match the selected artwork"
+
+expected = bytearray(w * h * 3)
+for i in range(w * h):
+    lo = hex_vals[2 * i]
+    hi = hex_vals[2 * i + 1]
+    rgb565 = lo | (hi << 8)
+    r5 = (rgb565 >> 11) & 0x1F
+    g6 = (rgb565 >> 5) & 0x3F
+    b5 = rgb565 & 0x1F
+    # Match spi_lcd.cc's 6:6:6 expansion
+    expected[3 * i] = (r5 << 1) | (r5 >> 4)
+    expected[3 * i + 1] = g6
+    expected[3 * i + 2] = (b5 << 1) | (b5 >> 4)
+
+if ppm_pixels != bytes(expected):
+    mismatches = sum(1 for a, b in zip(ppm_pixels, expected) if a != b)
+    raise SystemExit(f"FAIL: lcd.ppm differed from the expected scene in {mismatches} channel bytes")
+
+print("OK: all 20,480 pixels (61,440 RGB channels) match the expected scene")
+PY
+
+echo "tools/sim-test: PASSED ($((SECONDS - start_sec))s)"

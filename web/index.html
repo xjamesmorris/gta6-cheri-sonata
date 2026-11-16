@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Grand Time Auto</title>
+    <link rel="icon" href="data:,">
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101016; }
+      main { max-width: 680px; padding: 24px; text-align: center; }
+      h1 { font-size: 1.2rem; }
+      canvas { width: min(512px, 80vw, 56vh); height: auto; background: #000; image-rendering: pixelated; outline: 2px solid #505068; }
+      canvas:focus { outline-color: #a0cdf5; }
+      #leds { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+      #leds span { width: 22px; height: 22px; line-height: 22px; border-radius: 50%; background: #30303f; color: #999; font-size: 11px; }
+      #leds .on { background: #7aff90; color: #102016; box-shadow: 0 0 6px #7aff90; }
+      .indicator-bank { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+      .indicator-bank span { min-width: 38px; padding: 5px; border-radius: 5px; background: #30303f; color: #999; font-size: 10px; }
+      .indicator-bank .on { background: #7aff90; color: #102016; box-shadow: 0 0 5px #7aff90; }
+      button { margin: 12px 4px 4px; padding: 8px 12px; cursor: pointer; }
+      p { line-height: 1.5; color: #c9c9d5; }
+      #status[data-error] { color: #ff9b9b; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Grand Time Auto</h1>
+      <canvas id="lcd" width="128" height="160" tabindex="0" aria-label="Portrait driving game. On the title screen, Right plays and Down changes artwork. Arrow keys drive; Space or Enter presses the joystick."></canvas>
+      <div>
+        <button id="artwork-toggle" type="button" aria-controls="lcd" disabled>Switch title artwork</button>
+        <span id="artwork-name" role="status"></span>
+      </div>
+      <div id="leds" role="group" aria-label="Onboard user LEDs, 7 to 0">
+        <span role="img" data-led="7">7</span><span role="img" data-led="6">6</span>
+        <span role="img" data-led="5">5</span><span role="img" data-led="4">4</span>
+        <span role="img" data-led="3">3</span><span role="img" data-led="2">2</span>
+        <span role="img" data-led="1">1</span><span role="img" data-led="0">0</span>
+        <span role="img" data-rgb="1">R1</span><span role="img" data-rgb="2">R2</span>
+      </div>
+      <div id="board-status" class="indicator-bank" role="group" aria-label="Emulated Sonata mode and status LEDs">
+        <span role="img" data-board-status="fpga" data-name="FPGA Config">FPGA CFG</span>
+        <span role="img" data-board-status="boot" data-name="Ibex Boot">IBEX BOOT</span>
+        <span role="img" data-board-status="halted" data-name="Halted">HALTED</span>
+        <span role="img" data-board-status="cheri" data-name="CHERI mode">CHERI</span>
+        <span role="img" data-board-status="legacy" data-name="Legacy mode">LEGACY</span>
+      </div>
+      <div id="cheri-leds" class="indicator-bank" role="group" aria-label="Emulated Sonata CHERI exception LEDs">
+        <span role="img" data-cheri="0" data-name="Bounds" title="Bounds">BND</span>
+        <span role="img" data-cheri="1" data-name="Tag" title="Tag">TAG</span>
+        <span role="img" data-cheri="2" data-name="Seal" title="Seal">SEAL</span>
+        <span role="img" data-cheri="3" data-name="Permit execute" title="Permit execute">EXEC</span>
+        <span role="img" data-cheri="4" data-name="Permit load" title="Permit load">LOAD</span>
+        <span role="img" data-cheri="5" data-name="Permit store" title="Permit store">STORE</span>
+        <span role="img" data-cheri="6" data-name="Permit store capability" title="Permit store capability">SCAP</span>
+        <span role="img" data-cheri="7" data-name="Permit store local capability" title="Permit store local capability">SLOCAL</span>
+        <span role="img" data-cheri="8" data-name="Permit access system registers" title="Permit access system registers">SYS REG</span>
+      </div>
+      <p>Title: Right plays story mode &middot; Down changes artwork<br>
+        Arrow keys: drive &middot; Space / Enter: press<br>
+        Car hits build yellow heat into red stars. Green flashing means you are escaping.<br>
+        Denser traffic includes trucks, buses, and trailers. Police arrive at three stars and aim only once per pass.<br>
+        Police collisions are fatal at five. Police can explode when they hit solid objects.<br>
+        R2 flashes green for cash/small gold, gold for large gold, and orange for damage.<br>
+        WASTED holds red for 3 seconds, then fades to monochrome over 6 seconds
+        as both RGB LEDs turn purple and dim to off.<br>
+        Press after WASTED for the bill. Then Left resets; Right drives again with the remaining balance.</p>
+      <p>Artwork supplied by the Grand Time Auto project; the alternate was
+        generated using Claude (owner-supplied provenance) &middot;
+        <a href="artwork-license.txt" rel="license">CC BY 4.0 and attribution</a> &middot;
+        <a href="code-license.txt" rel="license">MIT code license</a></p>
+      <p id="protection-mode">CHERI protection is <strong>EMULATED</strong> in this browser.
+        The CHERIoT firmware uses real capability faults.
+        T/B/W count blocked tag, boundary, and wallet accesses.
+        Indicators model the running board, not live hardware telemetry.
+        Unused fault LEDs, Legacy and Halted stay unlit.</p>
+      <p id="status" role="status">Loading WebAssembly...</p>
+    </main>
+    <script src="game.js"></script>
+    <script src="preview.js"></script>
+  </body>
+</html>

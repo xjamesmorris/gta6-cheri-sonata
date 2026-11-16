@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+set -euo pipefail
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+artwork=primary
+if [[ $# == 2 && "${1:-}" == "--artwork" ]]; then
+	artwork=$2
+elif (($# != 0)); then
+	echo "Usage: tools/check-browser [--artwork primary|alternate]" >&2
+	exit 2
+fi
+case "$artwork" in
+	primary|alternate) ;;
+	*) echo "FAIL: artwork must be primary or alternate" >&2; exit 2 ;;
+esac
+if [[ -z "${GTA6_PREVIEW_SHELL:-}" ]]; then
+	exec nix develop --accept-flake-config "$root#preview" -c "$root/tools/check-browser" "$@"
+fi
+cd "$root"
+./tools/preview --build-only --artwork "$artwork"
+mkdir -p build/game-tests
+g++ -std=c++20 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -D"DRIVING_ARTWORK_${artwork^^}" \
+	-fno-omit-frame-pointer -Ifirmware firmware/game.cc firmware/game_renderer.cc firmware/protection_emulated.cc \
+	tests/test_game.cc -o build/game-tests/test_game_sanitized
+build/game-tests/test_game_sanitized
+g++ -std=c++20 -O2 -Wall -Wextra -Werror -shared -fPIC -Ifirmware -D"DRIVING_ARTWORK_${artwork^^}" \
+	firmware/game.cc firmware/game_renderer.cc firmware/protection_emulated.cc web/preview.cc -o build/game-tests/native.so
+GTA6_TEST_ARTWORK="$artwork" python3 -B tests/test_browser.py

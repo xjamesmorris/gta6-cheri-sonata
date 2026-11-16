@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Check that a UF2 file is a Sonata application image for slot 2 only.
+
+Usage: check-slot2-uf2 IMAGE.uf2 [IMAGE.strip]
+
+Sonata's RP2040 firmware (v1.0.0) selects image type from each UF2 block's
+family ID (0x6CE29E60 = application, 0x6CE29E6B = bitstream) and flash slot
+from the top 4 bits of each block's target address:
+  0x00000000 -> slot 1 (release demo)
+  0x10000000 -> slot 2 (wallpaper / secondary apps)
+  0x20000000 -> slot 3 (not modified by this application)
+This refuses any block that could write another slot or bitstream flash, or
+whose payload is not a bootable 32-bit CHERI RISC-V ELF executable.
+"""
+
+from __future__ import annotations
+
+import struct
+import sys
+
+UF2_MAGIC = (0x0A324655, 0x9E5D5157, 0x0AB16F30)
+FAMILY_PRESENT = 0x2000
+APPLICATION_FAMILY = 0x6CE29E60
+SLOT2_BASE = 0x10000000
+SLOT_SIZE = 10 * 1024 * 1024
+MAX_PAYLOAD = 256
+EM_RISCV = 243
+EF_RISCV_CHERI = 0x00010000 | 0x00020000
+
+
+def verify_slot2_uf2(data: bytes, strip_elf: bytes | None = None) -> tuple[int, int]:
+    if not data or len(data) % 512 != 0:
+        raise ValueError("not a whole number of 512-byte UF2 blocks")
+
+    count = len(data) // 512
+    payload = bytearray()
+    block_size = None
+    for index in range(count):
+        block = data[index * 512 : (index + 1) * 512]
+        magic0, magic1, flags, address, size, number, total, family = struct.unpack_from(
+            "<8I", block
+        )
+        (magic_end,) = struct.unpack_from("<I", block, 508)
+        where = f"block {index}"
+        if (magic0, magic1, magic_end) != UF2_MAGIC:
+            raise ValueError(f"{where}: bad UF2 magic numbers")
+        if not (flags & FAMILY_PRESENT) or family != APPLICATION_FAMILY:
+            raise ValueError(
+                f"{where}: not a Sonata application block "
+                f"(family {family:#010x}, flags {flags:#x})"
+            )
+        if (address >> 28) != (SLOT2_BASE >> 28):
+            raise ValueError(f"{where}: address {address:#010x} is not in slot 2")
+        if block_size is None:
+            block_size = size
+        if not (0 < size <= MAX_PAYLOAD) or size != block_size:
+            raise ValueError(
+                f"{where}: payload size {size}; need uniform size <= {MAX_PAYLOAD}"
+            )
+        if number != index or total != count:
+            raise ValueError(
+                f"{where}: numbered {number} of {total}, expected {index} of {count}"
+            )
+        if address != SLOT2_BASE + number * size:
+            raise ValueError(
+                f"{where}: address {address:#010x} does not match block number {number}"
+            )
+        payload += block[32 : 32 + size]
+
+    if len(payload) > SLOT_SIZE:
+        raise ValueError(f"{len(payload)} bytes exceed {SLOT_SIZE}-byte slot")
+    if len(payload) < 52 or payload[:4] != b"\x7fELF":
+        raise ValueError("payload does not start with an ELF header")
+    elf_class = payload[4]
+    elf_type, machine = struct.unpack_from("<HH", payload, 16)
+    (elf_flags,) = struct.unpack_from("<I", payload, 36)
+    if (elf_class, elf_type, machine) != (1, 2, EM_RISCV) or (
+        (elf_flags & EF_RISCV_CHERI) != EF_RISCV_CHERI
+    ):
+        raise ValueError("payload is not a 32-bit CHERI RISC-V executable")
+
+    if strip_elf is not None:
+        assert block_size is not None
+        padding = payload[len(strip_elf) :]
+        if (
+            len(payload) < len(strip_elf)
+            or payload[: len(strip_elf)] != strip_elf
+            or len(padding) >= block_size
+            or any(padding)
+        ):
+            raise ValueError("UF2 payload does not match stripped ELF")
+
+    return count, len(payload)
+
+
+def main() -> None:
+    if len(sys.argv) not in (2, 3):
+        sys.exit("usage: check-slot2-uf2 IMAGE.uf2 [IMAGE.strip]")
+    uf2_path = sys.argv[1]
+    strip_path = sys.argv[2] if len(sys.argv) == 3 else None
+    with open(uf2_path, "rb") as f:
+        data = f.read()
+    strip_elf = None
+    if strip_path is not None:
+        with open(strip_path, "rb") as f:
+            strip_elf = f.read()
+    try:
+        count, nbytes = verify_slot2_uf2(data, strip_elf)
+    except ValueError as exc:
+        sys.exit(f"FAIL: {uf2_path}: {exc}")
+    matched = f"; payload matches {strip_path}" if strip_path is not None else ""
+    print(f"OK: {uf2_path}: {count} blocks, {nbytes} bytes for application slot 2{matched}")
+
+
+if __name__ == "__main__":
+    main()

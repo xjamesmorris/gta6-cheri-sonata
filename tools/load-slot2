@@ -1,0 +1,265 @@
+#!/usr/bin/bash -p
+# SPDX-License-Identifier: MIT
+#
+# Preflight and attended loader for gta6_wallpaper into Sonata application
+# slot 2 (0x10000000). Other application slots and bitstreams are preserved.
+#
+# Usage:
+#   gta6-wallpaper-load-slot2 preflight
+#   gta6-wallpaper-load-slot2 load [--yes-pmod0-disconnected]
+#
+# `preflight` is strictly read-only: opens no serial port and mounts nothing.
+# `load` is for the human operator in an interactive terminal after confirming
+# Pmod0 is disconnected from external hardware (every UF2 copy stops and reloads
+# the FPGA).  `load` validates and writes a private snapshot, so a concurrent
+# rebuild cannot change the approved bytes.
+set -euo pipefail
+
+self=$(readlink -f "${BASH_SOURCE[0]}")
+root=$(dirname "$(dirname "$self")")
+release=$root/build/cheriot/cheriot/release
+uf2=$release/gta6_wallpaper.slot2.uf2
+strip=$release/gta6_wallpaper.strip
+report=$release/gta6_wallpaper.json
+latch=$root/build/load-slot2-not-finished
+image=$uf2
+image_strip=$strip
+image_report=$report
+image_sha256=
+snapshot_dir=
+verified_uf2_node=
+expected_sha256=${SONATA_EXPECT_UF2_SHA256:-}
+
+board_serial=${SONATA_BOARD_SERIAL:-}
+uf2_serial=${SONATA_UF2_SERIAL:-}
+ftdi_alias=${SONATA_FTDI_DEVICE:-}
+uf2_alias=${SONATA_UF2_DEVICE:-}
+console_log=${SONATA_CONSOLE_LOG:-}
+hub_port='^[0-9]+-[0-9]+(\.[0-9]+)*$'
+
+usage() {
+	printf 'usage: %s preflight | load [--yes-pmod0-disconnected]\n' "$(basename "$0")" >&2
+	exit 2
+}
+
+fail() {
+	printf 'Error: %s\n' "$*" >&2
+	exit 1
+}
+
+require_configuration() {
+	[[ -n "$board_serial" && -n "$uf2_serial" &&
+	   -n "$ftdi_alias" && -n "$uf2_alias" ]] ||
+		fail "Explicit SONATA_BOARD_SERIAL, SONATA_UF2_SERIAL, SONATA_FTDI_DEVICE and SONATA_UF2_DEVICE configuration is required."
+	[[ "$ftdi_alias" == /* && "$uf2_alias" == /* ]] ||
+		fail "Configured device paths must be absolute."
+	[[ -z "$console_log" || "$console_log" == /* ]] ||
+		fail "SONATA_CONSOLE_LOG must be an absolute path when configured."
+}
+
+udev_prop() {
+	local props
+	props=$(udevadm info --query=property --name="$1" 2>/dev/null) || return 1
+	sed -n "s/^$2=//p" <<<"$props"
+}
+
+sha256_of() {
+	local out
+	out=$(sha256sum "$1") || return 1
+	printf '%s\n' "${out%% *}"
+}
+
+select_images() {
+	image=$1/${uf2##*/}
+	image_strip=$1/${strip##*/}
+	image_report=$1/${report##*/}
+}
+
+remove_snapshot() {
+	local result=$?
+	trap - EXIT
+	if [[ -n "$snapshot_dir" ]]; then
+		if ! rm -f -- "$snapshot_dir/${uf2##*/}" \
+			"$snapshot_dir/${strip##*/}" "$snapshot_dir/${report##*/}" ||
+			! rmdir -- "$snapshot_dir"; then
+			printf 'Error: could not clean private snapshot %s\n' "$snapshot_dir" >&2
+			[[ "$result" -ne 0 ]] || result=1
+		fi
+	fi
+	exit "$result"
+}
+
+snapshot_image() {
+	snapshot_dir=$(python3 -I -B -c \
+		'import sys, tempfile; print(tempfile.mkdtemp(prefix=".slot2-approved-", dir=sys.argv[1]))' \
+		"$root/build")
+	trap remove_snapshot EXIT
+	cp -- "$uf2" "$strip" "$report" "$snapshot_dir/"
+	select_images "$snapshot_dir"
+}
+
+run_preflight() {
+	require_configuration
+	[[ ! -e "$latch" ]] || fail "Unfinished load latch exists at $latch. Power-cycle the Sonata board, inspect console output, and remove $latch manually before loading."
+
+	[[ -s "$image" && -s "$image_strip" && -s "$image_report" ]] ||
+		fail "Missing build artifacts in $release; run $root/tools/check first."
+
+	if [[ "${1:-}" == "snapshot" ]]; then
+		snapshot_image
+	fi
+	"$root/tools/check-slot2-uf2" "$image" "$image_strip"
+	image_sha256=$(sha256_of "$image")
+	if [[ -n "$expected_sha256" ]]; then
+		[[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] ||
+			fail "SONATA_EXPECT_UF2_SHA256 must be 64 lowercase hexadecimal digits."
+		[[ "$image_sha256" == "$expected_sha256" ]] ||
+			fail "UF2 SHA-256 does not match the approved image; nothing was mounted or written."
+	fi
+
+	[[ -e "$ftdi_alias" ]] || fail "$ftdi_alias not found (is Sonata board $board_serial connected and udev installed?)."
+	[[ -e "$uf2_alias" ]] || fail "$uf2_alias not found (is Sonata board $board_serial on the expected USB port?)."
+
+	[[ $(udev_prop "$ftdi_alias" ID_VENDOR_ID) == "0403" &&
+	   $(udev_prop "$ftdi_alias" ID_MODEL_ID) == "6011" &&
+	   $(udev_prop "$ftdi_alias" ID_SERIAL_SHORT) == "$board_serial" ]] ||
+		fail "$ftdi_alias does not match Sonata FTDI serial $board_serial."
+
+	[[ $(udev_prop "$uf2_alias" ID_VENDOR_ID) == "2b3e" &&
+	   $(udev_prop "$uf2_alias" ID_MODEL_ID) == "4002" &&
+	   $(udev_prop "$uf2_alias" ID_FS_LABEL) == "SONATA" &&
+	   $(udev_prop "$uf2_alias" ID_SERIAL_SHORT) == "$uf2_serial" &&
+	   $(udev_prop "$uf2_alias" DEVTYPE) == "disk" ]] ||
+		fail "$uf2_alias is not a SONATA RP2040 programming drive."
+
+	local ftdi_sys uf2_sys hub
+	ftdi_sys=/sys$(udevadm info --query=path --name="$ftdi_alias")
+	uf2_sys=/sys$(udevadm info --query=path --name="$uf2_alias")
+	ftdi_sys=$(readlink -f "$ftdi_sys")
+	uf2_sys=$(readlink -f "$uf2_sys")
+	hub=${ftdi_sys%/*}
+	[[ ${hub##*/} =~ $hub_port && "$uf2_sys" == "$hub"/* ]] ||
+		fail "FTDI ($ftdi_sys) and UF2 drive ($uf2_sys) are not on the same Sonata USB hub."
+
+	local uf2_node
+	uf2_node=$(readlink -f "$uf2_alias")
+	if findmnt -n -S "$uf2_node" >/dev/null; then
+		fail "$uf2_alias ($uf2_node) is already mounted at $(findmnt -n -o TARGET -S "$uf2_node"); another load may be in progress."
+	fi
+	verified_uf2_node=$uf2_node
+
+	if [[ -f "$console_log" ]]; then
+		printf 'OK: console log readable: %s (%s lines)\n' "$console_log" "$(wc -l <"$console_log")"
+	else
+		printf 'Note: no readable console log; optionally set SONATA_CONSOLE_LOG to an existing operator-owned log.\n'
+	fi
+
+	local final_hash
+	final_hash=$(python3 -I -B -c 'import json, sys; print(json.load(open(sys.argv[1]))["final_hash"])' "$image_report")
+	printf 'OK: board %s verified on hub %s (%s unmounted)\n' "$board_serial" "${hub##*/}" "$uf2_node"
+	printf '    slot2_uf2_sha256=%s\n' "$image_sha256"
+	printf '    strip_sha256=%s\n' "$(sha256_of "$image_strip")"
+	printf '    report_final_hash=%s\n' "$final_hash"
+	printf 'OK: preflight passed for application slot 2.\n'
+}
+
+do_load_inner() {
+	[[ "$expected_sha256" =~ ^[0-9a-f]{64}$ && -f "$image" && ! -L "$image" ]] ||
+		fail "Invalid approved snapshot; nothing was mounted or written."
+	run_preflight
+
+	local start_lines=0
+	if [[ -f "$console_log" ]]; then
+		start_lines=$(wc -l <"$console_log")
+	fi
+
+	local mount_out mount_dir uf2_node
+	uf2_node=$verified_uf2_node
+	printf 'Mounting %s...\n' "$uf2_node"
+	mount_out=$(udisksctl mount --no-user-interaction -b "$uf2_node" --options nosuid,nodev,noexec)
+	printf '%s\n' "$mount_out"
+	mount_dir=$(findmnt -n -o TARGET -S "$uf2_node")
+	if [[ -z "$mount_dir" || ! -d "$mount_dir" ]]; then
+		udisksctl unmount --no-user-interaction -b "$uf2_node" >/dev/null 2>&1 || true
+		fail "Could not determine mount directory for $uf2_node."
+	fi
+
+	mkdir -p "$(dirname "$latch")"
+	printf 'started=%s\nuf2=%s\nsha256=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$uf2" "$image_sha256" >"$latch"
+
+	printf 'Copying %s to %s (do NOT interrupt)...\n' "$(basename "$uf2")" "$mount_dir/"
+	cp -- "$image" "$mount_dir/"
+	sync
+
+	printf 'Unmounting %s...\n' "$uf2_node"
+	udisksctl unmount --no-user-interaction -b "$uf2_node"
+	rm -f "$latch"
+
+	printf 'Slot 2 write finished cleanly. Waiting 9s for FPGA reload, bootloader, and 6s fade-in...\n'
+	sleep 9
+
+	if [[ -f "$console_log" ]]; then
+		printf '==== New console lines from %s:\n' "$console_log"
+		tail -n +"$((start_lines + 1))" "$console_log" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r' || true
+	fi
+	printf '\nDone. Set SW7 (SW App) to 2 and press SW5 (processor reset) to view the wallpaper;\n'
+	printf 'select another application slot and press SW5 to return to its existing firmware.\n'
+}
+
+run_load() {
+	local confirmed=${1:-false}
+	run_preflight snapshot
+
+	if [[ "$confirmed" != "true" ]]; then
+		[[ -t 0 && -t 1 ]] || fail "'load' without --yes-pmod0-disconnected must be run interactively in a terminal."
+		printf '\nSAFETY CHECK BEFORE WRITING APPLICATION SLOT 2:\n'
+		printf '  1. Every UF2 write stops and reloads the Sonata FPGA; Pmod0 MUST be\n'
+		printf '     disconnected from external hardware before continuing.\n'
+		printf '  2. Only application slot 2 (0x10000000) will be replaced, with\n'
+		printf '     sha256 %s.\n' "$image_sha256"
+		printf '     Bitstreams and application slots 1 and 3 are untouched.\n'
+		printf '  3. Do not interrupt the copy once it starts.\n\n'
+		local answer=""
+		read -r -p 'Confirm Pmod0 is disconnected and write slot 2 now? Type "yes" to proceed: ' answer
+		if [[ "$answer" != "yes" ]]; then
+			printf 'Aborted; nothing was mounted or written.\n'
+			exit 1
+		fi
+	fi
+
+	if command -v systemd-inhibit >/dev/null 2>&1; then
+		SONATA_LOAD_INNER=1 systemd-inhibit --what=sleep:idle:handle-lid-switch \
+			--who="gta6-wallpaper-load-slot2" --why="Writing UF2 to Sonata flash slot 2" \
+			"$self" _inner_load "$snapshot_dir" "$image_sha256"
+	else
+		expected_sha256=$image_sha256
+		do_load_inner
+	fi
+}
+
+case "${1:-}" in
+	preflight)
+		[[ $# -eq 1 ]] || usage
+		run_preflight
+		;;
+	load)
+		if [[ $# -eq 1 ]]; then
+			run_load false
+		elif [[ $# -eq 2 && "${2:-}" == "--yes-pmod0-disconnected" ]]; then
+			run_load true
+		else
+			usage
+		fi
+		;;
+	_inner_load)
+		[[ "${SONATA_LOAD_INNER:-}" == "1" && $# -eq 3 ]] || usage
+		[[ -z "$expected_sha256" || "$expected_sha256" == "$3" ]] ||
+			fail "Snapshot hash differs from the requested image."
+		select_images "$2"
+		expected_sha256=$3
+		do_load_inner
+		;;
+	*)
+		usage
+		;;
+esac

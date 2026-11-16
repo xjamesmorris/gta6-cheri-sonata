@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Reconcile RTL first-occurrence classes and verified per-call fault totals."""
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+import json
+import pathlib
+import re
+
+LABELS = {
+    "Tag": "tag",
+    "Bounds": "bounds",
+    "Permit Store": "store",
+    "Permit Store Local Cap": "local",
+}
+CAUSES = {"wallet": 0x13, "tag": 0x02, "road-left": 0x01, "road-right": 0x01}
+NUMBER = r"-?(?:0x[0-9a-fA-F]+|[0-9]+)"
+
+
+def clean(text):
+    return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text).replace("\r", "")
+
+
+def fields(line):
+    return {key: int(value, 0) for key, value in re.findall(
+        rf"([a-z_]+)=({NUMBER})(?=\s|$)", line
+    )}
+
+
+def valid_fault(data, cause):
+    return (data.get("ret") == -1 and data.get("valid") == 1 and
+            data.get("count") == 1 and data.get("mcause") == 28 and
+            "mtval" in data and data["mtval"] & 31 == cause and
+            1 <= data["mtval"] >> 5 <= 15)
+
+
+def verify(simulator_text, uart_text, expected_game, exhaustive=False):
+    simulator, uart = clean(simulator_text), clean(uart_text)
+    if "FAIL:" in simulator or "FAIL:" in uart:
+        raise ValueError("firmware/simulator reported a failure")
+    if re.search(r"CHERI .*violation", uart):
+        raise ValueError("unexpected capability-error output on UART")
+    observed = Counter({value: 0 for value in LABELS.values()})
+    for line in simulator.splitlines():
+        if re.search(r"CHERI .*violation", line):
+            match = re.fullmatch(
+                r"\*\*\* CHERI '([^']+)' violation occurred \*\*\* at time\s+\d+", line
+            )
+            if match is None or match[1] not in LABELS:
+                raise ValueError(f"unapproved RTL fault message: {line}")
+            observed[LABELS[match[1]]] += 1
+
+    totals = []
+    suite_totals = []
+    cases = set()
+    balances = set()
+    case_counts = Counter()
+    balance_counts = Counter()
+    controls = Counter()
+    stress = False
+    retention = False
+    passes = 0
+    extended = False
+    budget = False
+    suites = []
+    stress_faults = 0
+    local_faults = 0
+    retention_count = 0
+    budget_count = 0
+    stress_count = 0
+    for line in uart.splitlines():
+        if not line.startswith("captest: "):
+            continue
+        content = line.removeprefix("captest: ")
+        data = fields(content)
+        name = content.split(" ", 1)[0]
+        if name in CAUSES:
+            if (not valid_fault(data, CAUSES[name]) or
+                    not {"before", "after"} <= data.keys() or
+                    data["before"] != data["after"]):
+                raise ValueError(f"invalid {name} evidence")
+            cases.add(name)
+            case_counts[name] += 1
+            if name == "wallet":
+                balances.add(data.get("before"))
+                balance_counts[data["before"]] += 1
+        elif content.startswith("TOTAL "):
+            if set(data) != {"tag", "bounds", "store", "local"}:
+                raise ValueError("malformed fault totals")
+            totals.append(data)
+        elif content.startswith("control success-rejected"):
+            if (data.get("ret") != 0 or data.get("record") != 0 or
+                    not {"before", "after"} <= data.keys() or data["before"] == data["after"]):
+                raise ValueError("invalid successful-access checker control")
+            controls["success"] += 1
+        elif content.startswith("control wrong-cause-rejected"):
+            if not valid_fault(data, 0x02):
+                raise ValueError("invalid wrong-cause checker control")
+            controls["wrong"] += 1
+        elif name == "retention":
+            if data.get("trapped") == 1:
+                if not valid_fault(data, 0x16):
+                    raise ValueError("invalid retention trap evidence")
+                local_faults += 1
+            elif not (data.get("trapped") == 0 and data.get("ret") == 0 and
+                      data.get("valid") == 0 and data.get("count") == 0 and
+                      data.get("mcause") == 0 and data.get("mtval") == 0):
+                raise ValueError("invalid retention stripping evidence")
+            retention = True
+            retention_count += 1
+        elif name == "stress":
+            if not (data.get("faults", 0) > 1024 and data.get("valid") == 1 and
+                    data.get("count") == 1 and data.get("mcause") == 28 and
+                    data.get("mtval", 0) & 31 == 0x02):
+                raise ValueError("invalid repeated-recovery evidence")
+            stress = True
+            stress_faults += data["faults"]
+            stress_count += 1
+        elif name == "budget":
+            if not (data.get("road_cycles", 0) > 0 and 0 < data.get("stack_bytes", 4096) < 4096):
+                raise ValueError("invalid stack/cycle measurements")
+            budget = True
+            budget_count += 1
+        elif content == "PASS hardware":
+            passes += 1
+            suite_totals.append({
+                "tag": 2 * passes + stress_faults,
+                "bounds": sum(2 * (72 if suite else 1) for suite in suites),
+                "store": 3 * passes,
+                "local": local_faults,
+            })
+        elif content.startswith("BEGIN hardware"):
+            if data.get("exhaustive") not in (0, 1):
+                raise ValueError("invalid self-test suite declaration")
+            suites.append(data["exhaustive"])
+            extended |= data["exhaustive"] == 1
+        else:
+            raise ValueError(f"unrecognized protection transcript line: {content}")
+
+    if cases != set(CAUSES) or balances != {-1000, 0, 1000}:
+        raise ValueError("required fault cases or wallet balances missing")
+    if set(controls) != {"success", "wrong"} or not retention or not budget or not passes:
+        raise ValueError("required controls, retention, measurements or pass marker missing")
+    if exhaustive and (not extended or not stress or passes < 2):
+        raise ValueError("extended hardware self-test incomplete")
+    if suites != ([0, 1] if exhaustive else [0]) or passes != len(suites):
+        raise ValueError("unexpected self-test suite sequence")
+    n = len(suites)
+    if (case_counts != {"wallet": 3 * n, "tag": n, "road-left": n, "road-right": n} or
+            balance_counts != {-1000: n, 0: n, 1000: n} or
+            controls != {"success": n, "wrong": n} or retention_count != n or
+            budget_count != n or stress_count != int(exhaustive) or len(totals) != n + 1):
+        raise ValueError("missing or repeated proof records")
+    if (set(expected_game) != {"origin", "tag", "bounds", "store", "local"} or
+            expected_game["origin"] != 0 or
+            any(type(value) is not int or value < 0 for value in expected_game.values())):
+        raise ValueError("invalid native emulation expectations")
+    expected = {
+        "tag": 2 * len(suites) + stress_faults + expected_game["tag"],
+        "bounds": sum(2 * (72 if suite else 1) for suite in suites) + expected_game["bounds"],
+        "store": 3 * len(suites) + expected_game["store"],
+        "local": local_faults + expected_game["local"],
+    }
+    expected_presence = {name: int(count > 0) for name, count in expected.items()}
+    if dict(observed) != expected_presence or totals != suite_totals + [expected]:
+        raise ValueError(f"RTL classes/verified totals differ: RTL={dict(observed)}, expected_classes={expected_presence}, firmware={totals}, expected_events={suite_totals + [expected]}")
+    return expected
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("simulator", type=pathlib.Path)
+    parser.add_argument("uart", type=pathlib.Path)
+    parser.add_argument("expected_game", type=pathlib.Path)
+    parser.add_argument("--exhaustive", action="store_true")
+    args = parser.parse_args()
+    try:
+        counts = verify(args.simulator.read_text(errors="replace"),
+                        args.uart.read_text(errors="replace"),
+                        json.loads(args.expected_game.read_text()), args.exhaustive)
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"FAIL: protection transcript: {error}") from error
+    print(f"OK: RTL first-occurrence classes and verified per-call totals agree: {counts}")
+
+
+if __name__ == "__main__":
+    main()

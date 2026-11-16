@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Convert sonata-simulator's binary PPM dump (lcd.ppm) to PNG.
+
+Usage: ppm2png INPUT.ppm OUTPUT.png [SCALE]
+"""
+
+from __future__ import annotations
+
+import re
+import struct
+import sys
+import zlib
+
+
+def png_chunk(kind: bytes, body: bytes) -> bytes:
+    crc = zlib.crc32(kind + body) & 0xFFFFFFFF
+    return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", crc)
+
+
+def main() -> None:
+    if len(sys.argv) not in (3, 4):
+        sys.exit("usage: ppm2png INPUT.ppm OUTPUT.png [SCALE]")
+    scale = int(sys.argv[3]) if len(sys.argv) == 4 else 3
+    if scale < 1:
+        sys.exit("SCALE must be at least 1")
+    with open(sys.argv[1], "rb") as f:
+        raw = f.read()
+    header = re.match(rb"P6\s+(\d+)\s+(\d+)\s+(\d+)\s", raw)
+    if not header:
+        sys.exit(f"{sys.argv[1]} is not a binary PPM (P6) file")
+    width, height, maximum = (int(v) for v in header.groups())
+    if not (0 < maximum < 256):
+        sys.exit(f"unsupported maximum value {maximum}")
+    pixels = raw[header.end() : header.end() + width * height * 3]
+    if len(pixels) != width * height * 3:
+        sys.exit(f"{sys.argv[1]} is truncated")
+
+    levels = bytes(round(v * 255 / maximum) if v <= maximum else 255 for v in range(256))
+    rows = []
+    for y in range(height):
+        row = pixels[y * width * 3 : (y + 1) * width * 3].translate(levels)
+        wide = b"".join(row[x * 3 : x * 3 + 3] * scale for x in range(width))
+        rows.append((b"\x00" + wide) * scale)
+    image = (
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", struct.pack(">IIBBBBB", width * scale, height * scale, 8, 2, 0, 0, 0))
+        + png_chunk(b"IDAT", zlib.compress(b"".join(rows)))
+        + png_chunk(b"IEND", b"")
+    )
+    with open(sys.argv[2], "wb") as f:
+        f.write(image)
+
+
+if __name__ == "__main__":
+    main()

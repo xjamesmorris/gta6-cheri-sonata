@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Convert the Grand Time Auto parody wallpaper into a Sonata RGB565 header.
+
+By default:
+  1. Reads artwork/gta6-8bit-01.png (primary) or gta6-alternate-01.png.
+  2. Center-crops the design to fill the 128x160 panel.
+  3. Uses 32 colors and crisp 2x2 pixels, keeping the supplied lettering.
+  4. Emits little-endian RGB565 bytes without dithering.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import pathlib
+import sys
+
+try:
+    from PIL import Image, ImageDraw
+except ImportError:
+    host_py = "/usr/bin/python3"
+    if os.path.exists(host_py) and os.path.realpath(sys.executable) != os.path.realpath(host_py):
+        os.execv(host_py, [host_py, *sys.argv])
+    raise SystemExit("error: Python Pillow (PIL) is required to convert images")
+
+PANEL_W = 128
+PANEL_H = 160
+
+
+def fit_image(img: Image.Image, mode: str, size: tuple[int, int]) -> Image.Image:
+    img = img.convert("RGB")
+    src_w, src_h = img.size
+    width, height = size
+    if mode == "stretch":
+        return img.resize(size, Image.Resampling.LANCZOS)
+    if mode == "letterbox":
+        scale = min(width / src_w, height / src_h)
+        new_w = max(1, round(src_w * scale))
+        new_h = max(1, round(src_h * scale))
+        resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        canvas = Image.new("RGB", size, (0, 0, 0))
+        canvas.paste(resized, ((width - new_w) // 2, (height - new_h) // 2))
+        return canvas
+    target_ratio = width / height
+    src_ratio = src_w / src_h
+    if src_ratio > target_ratio:
+        crop_w = round(src_h * target_ratio)
+        left = (src_w - crop_w) // 2
+        cropped = img.crop((left, 0, left + crop_w, src_h))
+    else:
+        crop_h = round(src_w / target_ratio)
+        top = (src_h - crop_h) // 2
+        cropped = img.crop((0, top, src_w, top + crop_h))
+    return cropped.resize(size, Image.Resampling.LANCZOS)
+
+
+def rotate_for_panel(img: Image.Image, rotate: str) -> Image.Image:
+    if rotate == "ccw90":
+        return img.transpose(Image.Transpose.ROTATE_90)
+    if rotate == "cw90":
+        return img.transpose(Image.Transpose.ROTATE_270)
+    if rotate == "180":
+        return img.transpose(Image.Transpose.ROTATE_180)
+    return img
+
+
+def parody_title(img: Image.Image) -> None:
+    # Original, compact 4x5 lettering for the three-line parody logo.
+    glyphs = {
+        "G": (7, 8, 11, 9, 7), "R": (14, 9, 14, 10, 9),
+        "A": (6, 9, 15, 9, 9), "N": (9, 13, 11, 9, 9),
+        "D": (14, 9, 9, 9, 14), "T": (15, 6, 6, 6, 6),
+        "I": (15, 6, 6, 6, 15), "M": (9, 15, 15, 9, 9),
+        "E": (15, 8, 14, 8, 15), "U": (9, 9, 9, 9, 6),
+        "O": (6, 9, 9, 9, 6),
+    }
+    scale = max(1, img.width // 64)
+    left = (img.width - 44 * scale) // 2
+    top = (img.height - 34 * scale) // 2
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((left, top, left + 44 * scale - 1, top + 34 * scale - 1),
+                   fill=(20, 16, 36), outline=(152, 88, 144), width=scale)
+    for line, word in enumerate(("GRAND", "TIME", "AUTO")):
+        start_x = (img.width - (len(word) * 5 - 1) * scale) // 2
+        start_y = top + (5 + line * 8) * scale
+        for index, letter in enumerate(word):
+            for y, row in enumerate(glyphs[letter]):
+                for x in range(4):
+                    if row & (8 >> x):
+                        px = start_x + (index * 5 + x) * scale
+                        py = start_y + y * scale
+                        draw.rectangle((px, py, px + scale - 1, py + scale - 1),
+                                       fill=(255, 255, 255))
+
+
+def make_wallpaper(img: Image.Image, fit: str, rotate: str, style: str) -> Image.Image:
+    size = (PANEL_H, PANEL_W) if rotate in ("ccw90", "cw90") else (PANEL_W, PANEL_H)
+    if style in ("retro", "pixel-art"):
+        small = fit_image(img, fit, (size[0] // 2, size[1] // 2))
+        if style == "pixel-art":
+            parody_title(small)
+        palette = small.quantize(colors=32, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+        image = palette.convert("RGB").resize(size, Image.Resampling.NEAREST)
+    else:
+        image = fit_image(img, fit, size)
+        if style == "photo":
+            parody_title(image)
+    return rotate_for_panel(image, rotate)
+
+
+def quantize_rgb565(img: Image.Image, dither: bool) -> tuple[bytes, Image.Image]:
+    width, height = img.size
+    raw = img.tobytes()
+    buf = [float(b) for b in raw]
+    out_bytes = bytearray(width * height * 2)
+    preview_rgb = bytearray(width * height * 3)
+
+    for y in range(height):
+        for x in range(width):
+            idx = (y * width + x) * 3
+            r = min(255.0, max(0.0, buf[idx]))
+            g = min(255.0, max(0.0, buf[idx + 1]))
+            b = min(255.0, max(0.0, buf[idx + 2]))
+
+            r5 = int(round(r * 31.0 / 255.0))
+            g6 = int(round(g * 63.0 / 255.0))
+            b5 = int(round(b * 31.0 / 255.0))
+
+            r8 = (r5 << 3) | (r5 >> 2)
+            g8 = (g6 << 2) | (g6 >> 4)
+            b8 = (b5 << 3) | (b5 >> 2)
+
+            if dither:
+                er = r - r8
+                eg = g - g8
+                eb = b - b8
+                for dx, dy, weight in ((1, 0, 7.0 / 16.0), (-1, 1, 3.0 / 16.0), (0, 1, 5.0 / 16.0), (1, 1, 1.0 / 16.0)):
+                    nx = x + dx
+                    ny = y + dy
+                    if 0 <= nx < width and 0 <= ny < height:
+                        nidx = (ny * width + nx) * 3
+                        buf[nidx] += er * weight
+                        buf[nidx + 1] += eg * weight
+                        buf[nidx + 2] += eb * weight
+
+            rgb565 = (r5 << 11) | (g6 << 5) | b5
+            p2 = (y * width + x) * 2
+            out_bytes[p2] = rgb565 & 0xFF
+            out_bytes[p2 + 1] = (rgb565 >> 8) & 0xFF
+
+            preview_rgb[idx] = r8
+            preview_rgb[idx + 1] = g8
+            preview_rgb[idx + 2] = b8
+
+    return bytes(out_bytes), Image.frombytes("RGB", (width, height), bytes(preview_rgb))
+
+
+def render_header(data: bytes, width: int, height: int, source_name: str, fit: str, rotate: str, style: str, dither: bool, license_id: str | None = None) -> str:
+    lines = [
+        "// Generated by tools/convert-wallpaper; do not edit by hand.",
+    ]
+    if license_id is not None:
+        lines += [
+            f"// SPDX-License-Identifier: {license_id}",
+            "// Artwork attribution and conversion notes: artwork/README.md.",
+        ]
+    lines += [
+        f"// Source: {source_name} (fit={fit}, rotate={rotate}, style={style}, dither={dither})",
+        "#pragma once",
+        "",
+        "#include <stdint.h>",
+        "",
+        f"constexpr uint32_t WallpaperWidth = {width};",
+        f"constexpr uint32_t WallpaperHeight = {height};",
+        "",
+        f"alignas(256) constexpr uint8_t WallpaperRgb565[{len(data)}] = {{",
+    ]
+    per_line = 16
+    for offset in range(0, len(data), per_line):
+        chunk = data[offset : offset + per_line]
+        hex_bytes = ", ".join(f"0x{b:02x}" for b in chunk)
+        lines.append(f"    {hex_bytes},")
+    lines.append("};")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> None:
+    root = pathlib.Path(__file__).resolve().parent.parent
+    artworks = {
+        "primary": root / "artwork" / "gta6-8bit-01.png",
+        "alternate": root / "artwork" / "gta6-alternate-01.png",
+    }
+    parser = argparse.ArgumentParser(description=__doc__)
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
+        "--artwork",
+        choices=tuple(artworks),
+        default="primary",
+        help="Project artwork to convert (default: primary)",
+    )
+    source.add_argument(
+        "--input",
+        type=pathlib.Path,
+        help="Custom input image instead of a named project artwork",
+    )
+    parser.add_argument(
+        "--output",
+        type=pathlib.Path,
+        help="Output C++ header path (default: the selected artwork's firmware header)",
+    )
+    parser.add_argument(
+        "--fit",
+        choices=("crop", "letterbox", "stretch"),
+        default="crop",
+        help="How to map the source aspect ratio onto the portrait panel",
+    )
+    parser.add_argument(
+        "--rotate",
+        choices=("ccw90", "cw90", "0", "180"),
+        default="0",
+        help="Optional pre-rotation; default 0 uses the native 128x160 portrait view",
+    )
+    parser.add_argument("--style", choices=("retro", "artwork", "pixel-art", "photo"), default="retro",
+                        help="Retro pixel art with supplied lettering (default), smooth artwork, or legacy title-overlaid pixel-art/photo processing")
+    parser.add_argument("--no-dither", action="store_true", help="Disable RGB565 dithering in photo mode")
+    parser.add_argument("--preview-dir", type=pathlib.Path, default=None, help="Optional directory for PNG previews")
+    parser.add_argument("--check", action="store_true", help="Verify --output matches generated header without writing")
+    args = parser.parse_args()
+
+    if args.input is None:
+        args.input = artworks[args.artwork]
+    if args.output is None:
+        filename = "wallpaper_image_alternate.h" if args.artwork == "alternate" else "wallpaper_image.h"
+        args.output = root / "firmware" / filename
+    if not args.input.is_file():
+        raise SystemExit(f"error: input image not found: {args.input}")
+
+    with Image.open(args.input) as src:
+        panel_img = make_wallpaper(src, args.fit, args.rotate, args.style)
+    dither = args.style == "photo" and not args.no_dither
+    rgb565_bytes, panel_preview = quantize_rgb565(panel_img, dither=dither)
+
+    header_text = render_header(
+        rgb565_bytes,
+        panel_img.width,
+        panel_img.height,
+        args.input.name,
+        args.fit,
+        args.rotate,
+        args.style,
+        dither,
+        "CC-BY-4.0" if args.input.resolve() in {path.resolve() for path in artworks.values()} else None,
+    )
+
+    if args.preview_dir is not None:
+        args.preview_dir.mkdir(parents=True, exist_ok=True)
+        panel_preview.save(args.preview_dir / f"panel-{panel_img.width}x{panel_img.height}.png")
+        panel_preview.resize((panel_img.width * 4, panel_img.height * 4),
+                             Image.Resampling.NEAREST).save(args.preview_dir / "wallpaper-scaled.png")
+
+    if args.check:
+        if not args.output.is_file():
+            raise SystemExit(f"FAIL: {args.output} does not exist")
+        existing = args.output.read_text(encoding="utf-8")
+        if existing != header_text:
+            raise SystemExit(f"FAIL: {args.output} is out of date; re-run tools/convert-wallpaper")
+        print(
+            f"OK: {args.output} matches {args.input.name} "
+            f"({panel_img.width}x{panel_img.height}, {len(rgb565_bytes)} bytes)"
+        )
+        return
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(header_text, encoding="utf-8")
+    print(
+        f"Wrote {args.output} ({panel_img.width}x{panel_img.height}, "
+        f"{len(rgb565_bytes)} bytes, fit={args.fit}, rotate={args.rotate}, style={args.style}, dither={dither})"
+    )
+
+
+if __name__ == "__main__":
+    main()
