@@ -116,6 +116,10 @@ namespace
 		Game game;
 		game.advance(FadeMs + PromptDelayMs, 0);
 		const bool initialArtwork = game.alternateArtwork;
+		game.advance(0, Press);
+		game.advance(30'000, Press);
+		assert(game.phase == Phase::Prompt && game.stars == 0 && game.distance == 0);
+		game.advance(0, 0);
 		game.advance(0, Down);
 		assert(game.phase == Phase::Prompt && game.alternateArtwork != initialArtwork);
 		game.advance(1'000, Down);
@@ -146,52 +150,6 @@ namespace
 		assert(game.alternateArtwork != initialArtwork && game.money == 0);
 		game.advance(FadeMs, 0);
 		assert(std::memcmp(render(game).pixels, artwork::pixels(game.alternateArtwork), FrameBytes) == 0);
-	}
-
-	void looping_demo()
-	{
-		for (uint32_t seed : {1u, 42u})
-		{
-			Game game;
-			game.reset(seed);
-			game.advance(FadeMs + PromptDelayMs, 0);
-			const bool artwork = game.alternateArtwork;
-			game.advance(0, Press);
-			game.advance(TickMs * 4, Press);
-			assert(game.demoActive && game.phase == Phase::Playing);
-			game.advance(0, 0);
-			uint32_t fiveStarAt = 0;
-			for (uint32_t elapsed = 0; elapsed < 30'000 && game.phase == Phase::Playing;
-			     elapsed += TickMs)
-			{
-				game.advance(TickMs, 0);
-				if (game.stars == 5 && fiveStarAt == 0)
-				{
-					fiveStarAt = game.activeMs;
-				}
-			}
-			assert(game.demoActive && game.phase == Phase::Wasted && game.stars == 5);
-			assert(fiveStarAt != 0 && game.activeMs - fiveStarAt >= DemoFiveStarMs);
-			assert(game.money == MoneyBagValue && !game.protection.failed());
-			assert(game.protection.roadDenials > 0 && game.protection.tagDenials > 0 &&
-			       game.protection.walletDenials > 0);
-			if (seed == 1)
-			{
-				game.advance(DemoEndMs - 1, 0);
-				assert(game.phase == Phase::Wasted && game.demoActive);
-				game.advance(1, 0);
-				assert(game.phase == Phase::Playing && game.demoActive &&
-				       game.stars == 0 && game.damage == 0 && game.money == 0);
-			}
-			game.advance(0, Press);
-			assert(game.phase == Phase::Prompt && !game.demoActive &&
-			       game.money == 0 && game.alternateArtwork == artwork);
-			game.advance(TickMs, Press);
-			assert(game.phase == Phase::Prompt);
-			game.advance(0, 0);
-			game.advance(0, Right);
-			assert(game.phase == Phase::Playing && !game.demoActive);
-		}
 	}
 
 	void collisions_and_recovery()
@@ -1079,7 +1037,7 @@ namespace
 
 	void scene_fixtures()
 	{
-		for (int scene = 1; scene <= 28; ++scene)
+		for (int scene = 1; scene <= 27; ++scene)
 		{
 			Game game;
 			assert(test::prepare_scene(game, scene));
@@ -1232,7 +1190,7 @@ namespace
 				if (std::memcmp(
 				      prompt.pixels + offset, artwork::pixels(game.alternateArtwork) + offset, 2))
 				{
-					assert(x >= 4 && x < Width - 3 && y >= Height - 23 &&
+					assert(x >= 4 && x < Width - 3 && y >= Height - 15 &&
 					       y <= Height - 2);
 					++changed;
 				}
@@ -1326,7 +1284,6 @@ int main()
 {
 	screen_flow();
 	title_navigation();
-	looping_demo();
 	collisions_and_recovery();
 	escaping_and_money();
 	billing_sequence();

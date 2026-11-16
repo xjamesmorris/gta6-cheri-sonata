@@ -39,6 +39,7 @@
           (pkgs.python3.withPackages (ps: [ps.playwright ps.pillow ps.qrcode]))
           pkgs.chromium
           pkgs.zbar
+          pkgs.iproute2
         ];
         GTA6_PREVIEW_SHELL = "1";
         CHROMIUM = "${pkgs.chromium}/bin/chromium";

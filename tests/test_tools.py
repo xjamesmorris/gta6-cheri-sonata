@@ -37,6 +37,34 @@ def load_tool(name: str, rel_path: str):
 check_slot2 = load_tool("check_slot2_uf2", "tools/check-slot2-uf2")
 protection_elf = load_tool("check_protection_elf", "tools/check-protection-elf")
 protection_transcript = load_tool("check_protection_transcript", "tools/check-protection-transcript")
+preview_address = load_tool("preview_address", "tools/preview-address")
+
+
+class PreviewAddressTests(unittest.TestCase):
+    @staticmethod
+    def interface(name, address):
+        return {"ifname": name, "link_type": "ether", "flags": ["UP"],
+                "addr_info": [{"family": "inet", "scope": "global", "local": address}]}
+
+    def test_prefers_wired_route_and_excludes_wireless_bridge(self):
+        interfaces = [
+            self.interface("wired", "192.0.2.10"),
+            self.interface("wifi", "198.51.100.10"),
+            self.interface("bridge", "203.0.113.10"),
+            {},
+        ]
+        routes = [{"dev": "wifi", "metric": 10}, {"dev": "wired", "metric": 100}]
+        self.assertEqual(preview_address.choose_address(interfaces, routes, {"wifi", "bridge"}),
+                         "192.0.2.10")
+        self.assertEqual(preview_address.choose_address(interfaces[:1], []), "192.0.2.10")
+
+    def test_no_lan_or_ambiguous_lan_requires_explicit_host(self):
+        for interfaces in ([], [self.interface("lo", "127.0.0.1")],
+                           [self.interface("public", "8.8.8.8")],
+                           [self.interface("one", "192.0.2.10"),
+                            self.interface("two", "198.51.100.10")]):
+            with self.subTest(interfaces=interfaces), self.assertRaises(ValueError):
+                preview_address.choose_address(interfaces, [])
 
 
 def make_fake_cheri_elf(extra: bytes = b"\x00" * 64) -> bytes:
@@ -472,7 +500,7 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
     primary = project / "firmware" / "wallpaper_image.h"
     original_primary = primary.read_bytes()
     with Image.open(project / "artwork" / "gta6-8bit-01.png") as source:
-        primary_pixels = conv.make_wallpaper(source, "crop", "0", "retro")
+        primary_pixels = conv.make_wallpaper(source, "crop", "0", "artwork")
     primary_expected, _ = conv.quantize_rgb565(primary_pixels, dither=False)
     assert bytes(int(x, 16) for x in re.findall(r"0x([0-9a-f]{2})", header)) == primary_expected
     alternate = pathlib.Path(tmp) / "alternate.h"
@@ -481,8 +509,11 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
     alternate_header = alternate.read_text()
     assert "SPDX-License-Identifier: CC-BY-4.0" in alternate_header
     with Image.open(project / "artwork" / "gta6-alternate-01.png") as source:
-        alternate_pixels = conv.make_wallpaper(source, "crop", "0", "retro")
+        alternate_pixels = conv.make_wallpaper(source, "crop", "0", "artwork")
     alternate_expected, _ = conv.quantize_rgb565(alternate_pixels, dither=False)
+    assert len(set(alternate_expected[i:i+2] for i in range(0, len(alternate_expected), 2))) > 32
+    assert any(alternate_expected[i:i+2] != alternate_expected[i+2:i+4]
+               for i in range(0, len(alternate_expected), 4))
     assert bytes(int(x, 16) for x in re.findall(r"0x([0-9a-f]{2})", alternate_header)) == alternate_expected
     assert alternate_header != header
     subprocess.run([sys.executable, sys.argv[1], "--output", str(output)],

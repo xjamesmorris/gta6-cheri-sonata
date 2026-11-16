@@ -33,11 +33,21 @@ claiming otherwise.
 Browser board indicators are emulated, not telemetry. All nine CHERI fault
 classes are displayed; bounds (0), tag (1) and permit-store (5) track gameplay
 denials, while unused classes remain dark. FPGA Config, Ibex Boot and CHERI
-model a running target; Legacy and Halted are off. Fault brightness follows
-127 PWM steps at 524161 clocks per step on a 40 MHz clock, about 1.66 seconds.
-The mapping and envelope come from the pinned Sonata
-[fault mapping](https://github.com/lowRISC/sonata-system/blob/e32eb27f638ccc3dbd86ff9b80ce21cac3828028/dv/verilator/top_verilator.sv)
-and [PWM module](https://github.com/lowRISC/sonata-system/blob/e32eb27f638ccc3dbd86ff9b80ce21cac3828028/rtl/system/pwm_fade.sv).
+model a running target; Legacy and Halted are off. The last emulated gameplay
+fault remains lit; the previous cause fades when it changes. This reflects
+the observed FPGA revision's CSR-driven input, rather than assuming every
+violation is only a one-cycle pulse. The browser does not model every CPU
+trap/interrupt or replay startup self-tests.
+
+At FPGA revision `1df06cdbe3954fb4`, the
+[core decodes retained mcause/mtval](https://github.com/lowRISC/sonata-system/blob/1df06cdbe3954fb4/vendor/lowrisc_ibex/rtl/ibex_cs_registers.sv)
+into the CHERI LED inputs; normal trap return does not clear them.
+The [PWM filter](https://github.com/lowRISC/sonata-system/blob/1df06cdbe3954fb4/rtl/system/pwm_fade.sv)
+is continually refreshed while that input stays high. A steady Tag LED can
+therefore describe a recovered last fault, not a stream of new failures.
+When the input drops, the fade is 127 steps of 524161 clocks (about 1.66 seconds
+at the software's 40 MHz target). No privileged diagnostic state is cleared
+merely to extinguish an indicator.
 
 ## Actual CHERIoT compartments
 
@@ -87,5 +97,23 @@ simulator class announcements as a substitute for handler evidence.
 
 Native tests and the browser exercise **emulation**. The RTL simulator executes
 the capability firmware, but it does not verify physical joystick orientation,
-electrical behavior or real-board LCD timing. Physical-board verification of
-this CHERI gameplay remains a prerequisite for release acceptance.
+electrical behavior or real-board LCD timing. Interactive physical acceptance
+remains a prerequisite for release.
+
+## Physical startup check: November 16, 2026
+
+The 383488-byte slot-2 image with SHA-256
+`a1eae22da914d9a89e19ac05950543cba11a6c960d2ce8d94b293f6045c26f2d`
+was loaded through the guarded loader and reached the title screen.
+Its actual startup checks recovered seven expected faults: two tag, two
+bounds and three store-permission faults. Wallet balances zero, positive and
+negative, and the protected guard values, remained unchanged. Positive and
+wrong-cause controls passed; the retention probe returned no usable tagged
+capability without reporting a local-store exception.
+
+The console reported `PASS hardware`, the CHERIoT hardware backend and title
+readiness with no unexpected failure. The normal road check measured 11813
+cycles and 1408 stack bytes. This is image-specific startup evidence, not an
+exhaustive physical stress run or full interactive acceptance. Subsequent
+smooth-artwork/demo-removal builds are separate artifacts until explicitly
+loaded and checked.

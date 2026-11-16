@@ -45,8 +45,6 @@ namespace driving
 	constexpr uint32_t DamageFlashMs  = 240;
 	constexpr uint32_t WastedHoldMs   = 3'000;
 	constexpr uint32_t WastedFadeMs   = 6'000;
-	constexpr uint32_t DemoEndMs      = 10'000;
-	constexpr uint32_t DemoFiveStarMs = 1'000;
 	constexpr uint32_t RgbPoliceBlue  = 0x0000ff;
 	constexpr uint32_t RgbWastedRed   = 0xff0000;
 	constexpr uint32_t RgbWastedPurple = 0x8000ff;
@@ -168,7 +166,6 @@ namespace driving
 #else
 		bool                                alternateArtwork = true;
 #endif
-		bool                                demoActive = false;
 		uint32_t                            phaseMs     = 0;
 		uint32_t                            activeMs    = 0;
 		uint32_t                            cleanMs     = 0;
@@ -228,7 +225,6 @@ namespace driving
 		uint32_t nextScenery    = 800;
 		size_t   nextObstacle   = 0;
 		bool     armed          = false;
-		bool     demoStopArmed   = false;
 		bool     fadingOut      = false;
 		bool     returnToGame   = false;
 		bool     waitForNeutral = false;
@@ -237,8 +233,6 @@ namespace driving
 		uint32_t playFadeMs     = 0;
 
 		void    start_run(bool fade = false);
-		void    start_demo();
-		void    prepare_demo_tick(Bounds road);
 		void    reset_run_state(uint32_t seed);
 		void    begin_bill();
 		void    enter_wasted(uint8_t input);

@@ -10,10 +10,19 @@ cd "$root"
 
 build_only=false
 port=8000
+host=
 artwork=alternate
 while (($#)); do
 	case "$1" in
 		--build-only) build_only=true; shift ;;
+		--host)
+			if (($# < 2)) || [[ -z "$2" ]]; then
+				echo "FAIL: --host requires an IPv4 address" >&2
+				exit 2
+			fi
+			host=$2
+			shift 2
+			;;
 		--artwork)
 			if (($# < 2)) || [[ "$2" != "primary" && "$2" != "alternate" ]]; then
 				echo "FAIL: --artwork requires primary or alternate" >&2
@@ -30,9 +39,15 @@ while (($#)); do
 			port=$((10#$2))
 			shift 2
 			;;
-		*) echo "Usage: tools/preview [--build-only] [--port PORT] [--artwork primary|alternate]" >&2; exit 2 ;;
+		*) echo "Usage: tools/preview [--build-only] [--host IPV4] [--port PORT] [--artwork primary|alternate]" >&2; exit 2 ;;
 	esac
 done
+
+if [[ -n "$host" ]]; then
+	host=$("$root/tools/preview-address" --host "$host")
+elif [[ "$build_only" != true ]]; then
+	host=$("$root/tools/preview-address")
+fi
 
 mkdir -p build/game-preview build/emscripten-cache
 export EM_CACHE="$root/build/emscripten-cache"
@@ -41,7 +56,7 @@ em++ -std=c++20 -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti \
 	firmware/game.cc firmware/game_renderer.cc firmware/protection_emulated.cc web/preview.cc \
 	--no-entry -sMODULARIZE -sEXPORT_NAME=createDrivingGame \
 	-sENVIRONMENT=web -sFILESYSTEM=0 -sINITIAL_MEMORY=8388608 -sSTACK_SIZE=65536 -sWASM_BIGINT \
-	-sEXPORTED_FUNCTIONS='["_preview_init","_preview_artwork","_preview_demo_active","_preview_toggle_artwork","_preview_width","_preview_height","_preview_advance","_preview_render","_preview_scale","_preview_phase","_preview_stars","_preview_money","_preview_bill_total","_preview_led_mask","_preview_rgb1","_preview_rgb2","_preview_damage","_preview_x","_preview_y","_preview_pending_hits","_preview_distance","_preview_protection_origin","_preview_protection_failed","_preview_tag_denials","_preview_wallet_denials","_preview_road_denials"]' \
+	-sEXPORTED_FUNCTIONS='["_preview_init","_preview_artwork","_preview_toggle_artwork","_preview_width","_preview_height","_preview_advance","_preview_render","_preview_scale","_preview_phase","_preview_stars","_preview_money","_preview_bill_total","_preview_led_mask","_preview_rgb1","_preview_rgb2","_preview_damage","_preview_x","_preview_y","_preview_pending_hits","_preview_distance","_preview_protection_origin","_preview_protection_failed","_preview_tag_denials","_preview_wallet_denials","_preview_road_denials","_preview_last_protection_event"]' \
 	-o build/game-preview/game.js
 cp web/index.html web/preview.js build/game-preview/
 cp artwork/README.md build/game-preview/artwork-license.txt
@@ -50,5 +65,5 @@ if [[ "$build_only" == true ]]; then
 	echo "Built $artwork artwork browser preview in build/game-preview"
 	exit 0
 fi
-echo "Preview: http://127.0.0.1:$port (loopback only; Ctrl-C stops)"
-exec python3 -m http.server "$port" --bind 127.0.0.1 --directory build/game-preview
+echo "Preview: http://$host:$port (Ctrl-C stops; allow this port from your LAN if needed)"
+exec python3 -m http.server "$port" --bind "$host" --directory build/game-preview

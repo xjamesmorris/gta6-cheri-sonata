@@ -500,38 +500,17 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual(self.state(), before)
         self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), 1 - original)
 
-    def test_demo_loop_and_cancellation(self):
+    def test_title_does_not_start_automatic_play(self):
         self.open_preview()
         self.advance(200, 45)
         self.page.locator("#lcd").click()
-        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 1)
-        self.assertEqual(self.state()[0], 3)
-        five_star_frames = 0
-        for _ in range(150):
-            self.advance(200)
-            if self.state()[1] == 5 and self.state()[0] == 3:
-                five_star_frames += 1
-            if self.state()[0] == 4:
-                break
-        self.assertGreaterEqual(five_star_frames, 4)
-        self.assertEqual(self.state()[:2], [4, 5])
-        self.assertEqual(self.state()[4], 1000)
-        self.assertGreater(self.page.evaluate("drivingPreview.module._preview_wallet_denials()"), 0)
-        self.screenshot("demo-wasted")
-        self.advance(200, 49)
-        self.assertEqual(self.state()[0], 4)
-        self.advance(200)
-        self.assertEqual(self.state()[:2], [3, 0])
-        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 1)
         self.page.keyboard.press("Space")
-        self.assertEqual(self.state()[0], 2)
-        self.assertEqual(self.state()[4], 0)
-        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 0)
         self.page.keyboard.press("Enter")
-        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 1)
-        self.page.locator("#lcd").click()
-        self.assertEqual(self.state()[0], 2)
-        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_demo_active()"), 0)
+        self.advance(200, 150)
+        self.assertEqual(self.state()[:2], [2, 0])
+        self.assertEqual(self.state()[3:5], [0, 0])
+        self.page.keyboard.press("ArrowRight")
+        self.assertEqual(self.state()[0], 3)
 
     def test_pages_project_subpath_and_notices(self):
         staging = tempfile.TemporaryDirectory(dir=ROOT / "build")
@@ -608,31 +587,47 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual(self.page.locator('[data-cheri="1"].on').count(), 1)
         self.assertEqual(self.page.locator('[data-cheri="5"].on').count(), 0)
         self.advance(200, 9)
-        self.assertEqual(self.page.locator("[data-cheri].on").count(), 0)
-        # Isolate the wallet-counter-to-LED wiring; actual wallet denials have core coverage.
+        self.assertEqual(self.page.locator('[data-cheri="0"].on').count(), 0)
+        self.assertEqual(self.page.locator('[data-cheri="1"]').get_attribute("data-level"), "127")
+        # Isolate retained-cause wiring from later game activity.
         self.page.evaluate("""() => {
-            drivingPreview.module._preview_wallet_denials = () => 1;
+            const m = drivingPreview.module;
+            const tag = m._preview_tag_denials(), bounds = m._preview_road_denials();
+            m._preview_tag_denials = () => tag;
+            m._preview_road_denials = () => bounds;
+            m._preview_wallet_denials = () => 1;
+            m._preview_last_protection_event = () => 2;
             drivingPreview.render();
         }""")
         self.assertEqual(self.page.locator('[data-cheri="5"].on').count(), 1)
-        self.assertEqual(self.page.locator("[data-cheri].on").count(), 1)
-        initial = int(self.page.locator('[data-cheri="5"]').get_attribute("data-level"))
+        initial = int(self.page.locator('[data-cheri="1"]').get_attribute("data-level"))
         self.advance(200, 4)
-        halfway = int(self.page.locator('[data-cheri="5"]').get_attribute("data-level"))
+        halfway = int(self.page.locator('[data-cheri="1"]').get_attribute("data-level"))
         self.assertGreater(halfway, 0)
         self.assertLess(halfway, initial)
+        self.assertEqual(self.page.locator('[data-cheri="5"]').get_attribute("data-level"), "127")
         self.advance(200, 5)
-        self.assertEqual(self.page.locator('[data-cheri="5"].on').count(), 0)
+        self.assertEqual(self.page.locator('[data-cheri="1"].on').count(), 0)
+        self.assertEqual(self.page.locator('[data-cheri="5"].on').count(), 1)
         for bit in (2, 3, 4, 6, 7, 8):
             self.assertEqual(self.page.locator(f'[data-cheri="{bit}"].on').count(), 0)
+        self.page.evaluate("""() => {
+            const m = drivingPreview.module, tag = m._preview_tag_denials();
+            m._preview_tag_denials = () => tag + 1;
+            m._preview_last_protection_event = () => 1;
+            drivingPreview.render();
+        }""")
+        self.advance(200, 9)
+        self.assertEqual(self.page.locator('[data-cheri="5"].on').count(), 0)
         # Wasm i32 exports are signed even when the C++ counter is uint32_t.
         self.page.evaluate("""() => {
             drivingPreview.module._preview_wallet_denials = () => -2147483648;
+            drivingPreview.module._preview_last_protection_event = () => 2;
             drivingPreview.render();
         }""")
         self.assertEqual(self.page.locator('[data-cheri="5"].on').count(), 1)
         self.advance(200, 9)
-        self.assertEqual(self.page.locator('[data-cheri="5"].on').count(), 0)
+        self.assertEqual(self.page.locator('[data-cheri="5"]').get_attribute("data-level"), "127")
 
     def test_failed_wasm_load_is_visible(self):
         self.expected_errors = True

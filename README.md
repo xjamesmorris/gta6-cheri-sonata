@@ -5,10 +5,12 @@ board-free WebAssembly preview. The repository name is `gta6-cheri-sonata`.
 The shared C++ game and RGB565 renderer target a **128×160** ST7735 LCD.
 
 **Development status:** this is not a 1.0 release. Real CHERIoT protection,
-fault recovery and simulator checks are implemented, but physical-board
-verification of this CHERI gameplay remains outstanding; the board still runs
-earlier stable firmware. Version 1.0 and public deployment require a later owner
-decision. A browser result is **not** evidence of hardware capability enforcement.
+fault recovery and simulator checks are implemented. The recorded November 16,
+2026 firmware image passed its physical-board startup fault tests and reached
+the title screen; see [verification boundaries](docs/architecture.md).
+Interactive acceptance and later artwork revisions still require appropriate
+board checks. Version 1.0 and public deployment require a later owner decision.
+A browser result is **not** evidence of hardware capability enforcement.
 Both supplied CC BY 4.0 images are authorized for this edition. Runtime artwork
 switching, title navigation, a source-repository QR screen and emulated CHERI
 indicator LEDs are implemented. Final release acceptance and deployment
@@ -27,15 +29,6 @@ The browser's artwork button changes the selected title image without
 resetting progress, including during play. Artwork selection survives runs
 and soft resets; a power reset (or browser reload) restores the build's
 initial selection. Focus loss pauses the browser and clears held keys.
-
-Left-click the title canvas, or use the centre press (Space/Enter), to start
-**demo mode**. A scripted run collects money, exercises road protection,
-earns five stars through actual vehicle collisions and then reaches WASTED.
-The end screen stays for **10 seconds**, including the full monochrome and
-purple-light fade, before another run starts. Any fresh direction, centre
-press or canvas click stops the demo and returns to the title; demo rewards
-are discarded and the selected artwork is retained. The demo uses normal
-collision and CHERIoT denial paths, not fabricated stars or fault records.
 
 - Steer through cars, trucks, buses and trailers; collect cash and gold.
 - Vehicle collisions build wanted stars. Police appear from three stars,
@@ -77,9 +70,14 @@ enabled, then run:
 ./tools/preview
 ```
 
-Open the loopback address printed by the tool. `--port 8001` changes the port;
+Open the Ethernet address printed by the tool. `--port 8001` changes the port;
 `--build-only` creates static files in `build/game-preview` without a server.
-The preview remains loopback-only; no firewall changes are needed.
+The default is a unique private IPv4 address on a wired interface, excluding
+Wi-Fi, bridges and loopback; `--host IPV4` is an explicit override. A missing
+or ambiguous Ethernet address fails rather than falling back to loopback or
+all interfaces. Allow the chosen port from your LAN in the host firewall.
+Only the built preview directory is served. `--build-only` never inspects
+network interfaces. Loopback is opt-in with `--host 127.0.0.1`.
 The newer Claude-generated `alternate` image is the default.
 `--artwork primary` selects the older image initially; both remain available
 through the compact **switch artwork** button and title-menu Down input.
@@ -137,7 +135,6 @@ operator-specific directory layout.
 ./tools/sim-test wasted-fade
 ./tools/sim-test wasted-monochrome
 ./tools/sim-test source-qr
-./tools/sim-test demo-wasted
 ./tools/sim-test --all
 ```
 
@@ -150,8 +147,6 @@ explicit `primary` builds retain paths without `alternate/`.
 The two WASTED fixtures freeze the shared color/LED fade at its midpoint and
 completed monochrome frame.
 `source-qr` additionally decodes the rendered QR to verify the source URL.
-`demo-wasted` drives the actual attract sequence to five stars and freezes its
-monochrome end screen just before the 10-second hold completes.
 
 `cheri-selftest` exercises actual tag, bounds and store-permission faults,
 all road widths, repeated recovery, grant-retention and wrong-cause controls,
@@ -160,9 +155,10 @@ exact handler-verified totals and the simulator's reported fault classes.
 Fixture scenes cannot be built as hardware images; the tool restores the
 normal hardware build configuration afterward.
 
-The simulator uses scripted input, not a live joystick. Physical controls,
-electrical behavior, LCD timing and physical-board CHERI execution still need
-board testing.
+The simulator uses scripted input, not a live joystick. Physical startup fault
+recovery has been checked for the recorded image, but controls, complete
+interactive gameplay, electrical behavior and LCD timing still require owner
+acceptance on the board.
 
 ## Credits
 
@@ -187,9 +183,11 @@ owner-supplied provenance and licensing statements, not an independent rights
 audit.
 
 Both public PNGs have metadata removed and decoded pixels unchanged.
-The splash is center-cropped, reduced to 64×80 with a 32-color palette, enlarged
-to 128×160 with nearest-neighbor pixels, and encoded as RGB565. The supplied
-lettering is retained. [Artwork attribution and transformation details](artwork/README.md)
+The full-resolution splash is center-cropped and smoothly resized directly to
+128×160 with Lanczos, then encoded as the LCD's required RGB565. There is no
+extra pixelation, restricted palette, dithering or replacement lettering by
+default; the old coarse `--style retro` remains opt-in.
+[Artwork attribution and transformation details](artwork/README.md)
 accompany browser and firmware build outputs.
 
 ```sh

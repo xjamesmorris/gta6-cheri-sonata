@@ -130,17 +130,6 @@ namespace driving
 		++revision;
 	}
 
-	void Game::start_demo()
-	{
-		const uint32_t seed = baseSeed;
-		reset(seed);
-		if (!protection.failed())
-		{
-			start_run();
-			demoActive = true;
-		}
-	}
-
 	void Game::begin_bill()
 	{
 		if (!protection.read_wallet(money))
@@ -192,39 +181,15 @@ namespace driving
 			return;
 		}
 		input &= Left | Right | Up | Down | Press;
-		if (demoActive)
-		{
-			if (input == 0)
-			{
-				demoStopArmed = true;
-			}
-			else if (demoStopArmed)
-			{
-				const uint32_t seed = baseSeed;
-				reset(seed);
-				phase = Phase::Prompt;
-				++revision;
-				return;
-			}
-			input = 0;
-		}
 		if (phase == Phase::Wasted)
 		{
 			const uint32_t previousColor = wasted_color_level();
-			const uint32_t duration = demoActive ? DemoEndMs : WastedHoldMs + WastedFadeMs;
-			const uint32_t remaining = duration - phaseMs;
+			const uint32_t remaining = WastedHoldMs + WastedFadeMs - phaseMs;
 			phaseMs += elapsedMs < remaining ? elapsedMs : remaining;
 			if (advance_explosions(elapsedMs) ||
 			    wasted_color_level() != previousColor)
 			{
 				++revision;
-			}
-			if (demoActive && phaseMs == DemoEndMs)
-			{
-				const bool canStop = demoStopArmed;
-				start_demo();
-				demoStopArmed = canStop;
-				return;
 			}
 		}
 		if (fadingOut)
@@ -298,10 +263,6 @@ namespace driving
 				else if (input == Down)
 				{
 					change_artwork();
-				}
-				else if (input == Press)
-				{
-					start_demo();
 				}
 				else if (input == Left)
 				{
@@ -490,62 +451,6 @@ namespace driving
 		nextScenery = distance + 1'000 + (sceneryState >> 8) % 1'001;
 	}
 
-	void Game::prepare_demo_tick(Bounds road)
-	{
-		carX = (road.left + road.right - CarWidth) / 2;
-		for (size_t i = 1; i < obstacles.size(); ++i)
-		{
-			obstacles[i].active = false;
-		}
-		for (auto &cop : police)
-		{
-			if (cop.active)
-			{
-				cop.x = road_bounds(cop.y + CarHeight / 2).right - CarWidth - 4;
-				cop.targetX = cop.x;
-				cop.courseCorrected = true;
-			}
-		}
-		if (stars == 5)
-		{
-			if (cleanMs >= DemoFiveStarMs)
-			{
-				auto &cop = police[0];
-				if (cop.active)
-				{
-					cop.x = carX;
-					cop.targetX = carX;
-					cop.y = carY + 2;
-				}
-				else
-				{
-					cop.enabled = true;
-					cop.waitMs = 0;
-				}
-			}
-			return;
-		}
-		if (activeMs == TickMs)
-		{
-			obstacles[0] = {static_cast<int16_t>(carX),
-			                 static_cast<int16_t>(carY - 22),
-			                 ObjectKind::MoneyBag, true};
-		}
-		else if (!obstacles[0].active)
-		{
-			if (money > 0 && protection.roadDenials == 0)
-			{
-				carX = road.left - 1;
-			}
-			else if (graceMs == 0)
-			{
-				obstacles[0] = {static_cast<int16_t>(carX),
-				                 static_cast<int16_t>(carY - CarHeight - 10),
-				                 ObjectKind::Car, true};
-			}
-		}
-	}
-
 	void Game::tick(uint8_t input)
 	{
 		++revision;
@@ -573,10 +478,6 @@ namespace driving
 			const Bounds road = road_bounds(y);
 			roadLeft          = road.left > roadLeft ? road.left : roadLeft;
 			roadRight         = road.right < roadRight ? road.right : roadRight;
-		}
-		if (demoActive)
-		{
-			prepare_demo_tick({roadLeft, roadRight});
 		}
 
 		const bool arithmeticContact =
@@ -732,7 +633,7 @@ namespace driving
 		}
 
 		// Subtraction remains valid across the unsigned distance wrap.
-		if (!demoActive && static_cast<int32_t>(distance - nextSpawn) >= 0)
+		if (static_cast<int32_t>(distance - nextSpawn) >= 0)
 		{
 			spawn_obstacle();
 			nextSpawn = distance + SpawnSpacing;

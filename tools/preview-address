@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Choose a private wired-LAN IPv4 address, or validate an explicit bind address."""
+
+import argparse
+import ipaddress
+import json
+import pathlib
+import subprocess
+
+
+def choose_address(interfaces, routes, excluded=()):
+    candidates = {}
+    for interface in interfaces:
+        # Some iproute2 versions emit empty objects for filtered-out links.
+        if not interface:
+            continue
+        name = interface["ifname"]
+        if (name in excluded or interface.get("link_type") != "ether" or
+                "UP" not in interface.get("flags", ())):
+            continue
+        addresses = set()
+        for info in interface.get("addr_info", ()):
+            if info.get("family") != "inet" or info.get("scope") != "global":
+                continue
+            address = ipaddress.IPv4Address(info["local"])
+            if (address.is_private and not address.is_loopback and
+                    not address.is_link_local and not address.is_reserved and
+                    not address.is_multicast and not address.is_unspecified):
+                addresses.add(str(address))
+        if addresses:
+            candidates[name] = addresses
+    preferred = []
+    for route in routes:
+        addresses = candidates.get(route.get("dev"), set())
+        source = route.get("prefsrc")
+        if source in addresses:
+            addresses = {source}
+        preferred.extend((int(route.get("metric", 0)), address) for address in addresses)
+    if preferred:
+        metric = min(item[0] for item in preferred)
+        choices = {address for priority, address in preferred if priority == metric}
+    else:
+        choices = set().union(*candidates.values()) if candidates else set()
+    if len(choices) != 1:
+        raise ValueError("no unique private Ethernet address; choose one explicitly with --host")
+    return choices.pop()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host", help="Explicit IPv4 bind address")
+    args = parser.parse_args()
+    try:
+        if args.host is not None:
+            address = str(ipaddress.IPv4Address(args.host))
+        else:
+            interfaces = json.loads(subprocess.check_output(
+                ["ip", "-j", "address", "show", "up"], text=True))
+            routes = json.loads(subprocess.check_output(
+                ["ip", "-j", "-4", "route", "show", "default"], text=True))
+            excluded = {
+                item["ifname"] for item in interfaces
+                if item and any((pathlib.Path("/sys/class/net") / item["ifname"] / kind).exists()
+                       for kind in ("wireless", "bridge", "tun_flags"))
+            }
+            address = choose_address(interfaces, routes, excluded)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        raise SystemExit(f"FAIL: preview address: {error}") from error
+    print(address)
+
+
+if __name__ == "__main__":
+    main()

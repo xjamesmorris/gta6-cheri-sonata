@@ -56,6 +56,8 @@
     let indicatorMs = 0;
     const faultCounts = new Uint32Array(9);
     const lastFaultMs = new Array(9).fill(-Infinity);
+    let retainedCause = -1;
+    const eventBits = new Map([[1, 1], [2, 5], [3, 0]]);
     const faultSources = new Map([
       [0, () => module._preview_road_denials()],
       [1, () => module._preview_tag_denials()],
@@ -116,14 +118,30 @@
         led.classList.toggle("on", on);
         led.setAttribute("aria-label", `${led.dataset.name}: ${on ? "on" : "off"} (emulated)`);
       }
+      let faultChanged = false;
+      for (const [bit, readCount] of faultSources) {
+        const count = readCount() >>> 0;
+        if (count > faultCounts[bit]) {
+          lastFaultMs[bit] = indicatorMs;
+          faultChanged = true;
+        }
+        faultCounts[bit] = count;
+      }
+      if (faultChanged) {
+        const cause = eventBits.get(module._preview_last_protection_event());
+        if (cause === undefined) {
+          fail(new Error("Unknown emulated protection event."));
+          return;
+        }
+        if (retainedCause >= 0 && retainedCause !== cause) lastFaultMs[retainedCause] = indicatorMs;
+        retainedCause = cause;
+      }
       for (const led of cheriLeds) {
         const bit = Number(led.dataset.cheri);
-        const count = faultSources.has(bit) ? faultSources.get(bit)() >>> 0 : 0;
-        if (count > faultCounts[bit]) lastFaultMs[bit] = indicatorMs;
-        faultCounts[bit] = count;
-        // Pinned Sonata PWM fade: 127 steps, 524161 clocks/step at 40 MHz.
+        // The board holds the current CSR cause high; older causes then PWM-fade.
         const elapsed = indicatorMs - lastFaultMs[bit];
-        const level = Math.max(0, 127 - Math.floor(elapsed * 40000 / 524161));
+        const level = bit === retainedCause ? 127
+          : Math.max(0, 127 - Math.floor(elapsed * 40000 / 524161));
         const strength = level / 128;
         const on = level > 0;
         led.classList.toggle("on", on);
@@ -167,8 +185,7 @@
     canvas.addEventListener("blur", clearInput);
     canvas.addEventListener("focus", clearInput);
     canvas.addEventListener("click", () => {
-      if (!stopped && (module._preview_phase() === 2 ||
-                      module._preview_phase() === 6 || module._preview_demo_active())) {
+      if (!stopped && module._preview_phase() === 6) {
         clearInput();
         module._preview_advance(0, 0);
         module._preview_advance(0, 16);
@@ -181,10 +198,6 @@
       if (stopped) return;
       clearInput();
       module._preview_advance(0, 0);
-      if (module._preview_demo_active()) {
-        module._preview_advance(0, 16);
-        module._preview_advance(0, 0);
-      }
       module._preview_toggle_artwork();
       canvas.focus();
       render();

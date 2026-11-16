@@ -21,11 +21,6 @@ extern "C"
 		return game.alternateArtwork;
 	}
 
-	uint32_t preview_demo_active()
-	{
-		return game.demoActive;
-	}
-
 	void preview_toggle_artwork()
 	{
 		game.change_artwork();
@@ -140,5 +135,10 @@ extern "C"
 	uint32_t preview_road_denials()
 	{
 		return game.protection.roadDenials;
+	}
+
+	uint32_t preview_last_protection_event()
+	{
+		return static_cast<uint32_t>(game.protection.lastEvent);
 	}
 }

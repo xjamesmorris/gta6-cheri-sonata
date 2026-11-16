@@ -25,7 +25,7 @@ Suggested credit:
 
 > Grand Time Auto artwork, supplied by the Grand Time Auto project. CC BY 4.0.
 > Alternate image generated using Claude (owner-supplied provenance).
-> Metadata removed; display derivatives cropped, scaled and color-reduced.
+> Metadata removed; display derivatives cropped and smoothly resized for RGB565.
 
 Retain appropriate credit, the license link and an indication of modifications
 when sharing the artwork or adaptations. No endorsement is implied.
@@ -49,10 +49,11 @@ not constitute provenance authentication or a rights audit.
 
 ## Display derivatives
 
-`tools/convert-wallpaper` center-crops to the panel's 4:5 portrait ratio,
-reduces to 64×80 with a 32-color palette, enlarges to 128×160 using
-nearest-neighbor sampling, and emits little-endian RGB565. It retains the
-supplied lettering; default conversion adds no lettering or dithering.
+`tools/convert-wallpaper` center-crops the full-resolution source to the
+panel's 4:5 portrait ratio, smoothly resizes directly to 128×160 using Lanczos,
+and emits the LCD's required little-endian RGB565 format. It retains the
+supplied lettering and colors without an intermediate coarse grid, restricted
+palette, replacement lettering or dithering.
 These transformations apply to generated display data, not the public source
 PNG pixels.
 
