@@ -16,6 +16,11 @@ A browser result is **not** evidence of hardware capability enforcement.
 [Source repository](https://github.com/xjamesmorris/gta6-cheri-sonata) ·
 [Browser game](https://xjamesmorris.github.io/gta6-cheri-sonata/)
 
+<a href="artwork/gta6-screenshot-01.png"><img src="artwork/gta6-screenshot-01.png" alt="Grand Time Auto web simulator during gameplay, with emulated board indicators" width="280"></a>
+
+Web simulator capture; indicators are emulated.
+[All screenshots](docs/screenshots.md) are available as compact, clickable thumbnails.
+
 ## Play
 
 The LCD starts black, fades in the artwork over six seconds, then displays a
@@ -62,7 +67,13 @@ rather than claiming a successful denial. Browser and native host tests use
 an explicitly **EMULATED** backend.
 
 See [architecture](docs/architecture.md) for compartment boundaries and the
-exact audit contract.
+exact audit contract, together with the retained
+[CHERI gameplay plan](docs/cheri-gameplay-plan.md) and
+[design review and verification record](docs/cheri-gameplay-review.md).
+
+Development used **GitHub Copilot**, **Claude** and **GPT-6 Astra**.
+The [LLM contribution policy](LLM-POLICY.md) explains disclosure, human
+responsibility, publication approval and evidence requirements.
 
 ## Browser and host development
 
