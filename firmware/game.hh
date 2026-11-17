@@ -34,10 +34,10 @@ namespace driving
 	constexpr uint32_t GraceMs        = 1'000;
 	constexpr uint32_t WallGraceMs    = 500;
 	constexpr uint8_t  WallDamage     = 1;
-	constexpr uint8_t  ConeDamage     = 2;
-	constexpr uint8_t  BarrierDamage  = 5;
-	constexpr uint8_t  CarDamage      = 5;
-	constexpr uint8_t  PoliceDamage   = 10;
+	constexpr uint8_t  ConeDamage     = 1;
+	constexpr uint8_t  BarrierDamage  = 3;
+	constexpr uint8_t  CarDamage      = 3;
+	constexpr uint8_t  PoliceDamage   = 6;
 	constexpr int64_t  RepairPerPoint = 500;
 	constexpr uint32_t EscapeFlashMs  = 5'000;
 	constexpr uint32_t RecoveryMs     = 10'000;

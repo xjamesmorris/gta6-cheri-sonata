@@ -54,10 +54,13 @@ class BrowserTests(unittest.TestCase):
         (OUTPUT / "screenshots").mkdir(exist_ok=True)
 
     def setUp(self):
-        self.page = self.browser.new_page()
-        self.addCleanup(self.page.close)
         self.errors = []
         self.expected_errors = False
+        self.new_page()
+
+    def new_page(self, **options):
+        self.page = self.browser.new_page(**options)
+        self.addCleanup(self.page.close)
         self.page.on("pageerror", lambda error: self.errors.append(str(error)))
         self.page.on(
             "console",
@@ -82,6 +85,24 @@ class BrowserTests(unittest.TestCase):
             "([ms, count]) => { for (let i = 0; i < count; i++) drivingPreview.step(ms); }",
             [milliseconds, count],
         )
+
+    def open_touch_preview(self, width=320, height=700):
+        self.page.close()
+        self.new_page(viewport={"width": width, "height": height},
+                      has_touch=True, is_mobile=True)
+        self.open_preview()
+        self.touch_session = self.page.context.new_cdp_session(self.page)
+        self.addCleanup(self.touch_session.detach)
+
+    def touch_point(self, key, identifier=1):
+        rect = self.page.locator(f'[data-touch="{key}"]').bounding_box()
+        self.assertIsNotNone(rect)
+        return {"id": identifier, "x": rect["x"] + rect["width"] / 2,
+                "y": rect["y"] + rect["height"] / 2}
+
+    def touch(self, event_type, points=()):
+        self.touch_session.send("Input.dispatchTouchEvent",
+                                {"type": event_type, "touchPoints": list(points)})
 
     def state(self):
         return self.page.evaluate("""() => {
@@ -453,6 +474,194 @@ class BrowserTests(unittest.TestCase):
                 .getImageData(0, 0, 128, 160).data);
         }""")
         self.assertEqual(bytes(actual_rgba), bytes(expected_rgba))
+
+    def test_phone_touch_menu_driving_and_multitouch(self):
+        self.open_touch_preview()
+        self.advance(200, 5)
+        original = self.page.evaluate("drivingPreview.module._preview_artwork()")
+        down = self.touch_point("ArrowDown")
+        self.touch("touchStart", [down])
+        self.advance(200, 30)
+        self.assertEqual(self.state()[0], 1)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"),
+                         1 - original)
+        self.touch("touchEnd")
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"),
+                         1 - original)
+        self.page.locator('[data-touch="ArrowDown"]').tap()
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"),
+                         original)
+        self.advance(200, 10)
+        self.page.locator('[data-touch="ArrowLeft"]').tap()
+        self.assertEqual(self.state()[0], 6)
+        self.assertTrue(self.page.locator("#artwork-toggle").is_disabled())
+        self.page.locator('[data-touch="Space"]').tap()
+        self.assertEqual(self.state()[0], 2)
+        self.page.locator('[data-touch="ArrowRight"]').tap()
+        self.assertEqual(self.state()[0], 3)
+        self.assertTrue(self.page.locator("#artwork-toggle").is_disabled())
+
+        right = self.touch_point("ArrowRight")
+        up = self.touch_point("ArrowUp", 2)
+        press = self.touch_point("Space", 3)
+        before = self.state()
+        self.touch("touchStart", [right])
+        self.touch("touchStart", [right, up, press])
+        self.advance(40)
+        self.assertGreater(self.state()[2], before[2])
+        self.assertLess(self.state()[5], before[5])
+        self.assertEqual(self.page.locator('[data-touch][aria-pressed="true"]').count(), 3)
+        self.assertEqual(self.page.evaluate("document.activeElement.id"), "lcd")
+        before = self.state()
+        self.touch("touchEnd", [up])
+        self.advance(40)
+        self.assertGreater(self.state()[2], before[2])
+        self.assertEqual(self.state()[5], before[5])
+        self.assertEqual(self.page.locator('[data-touch][aria-pressed="true"]').count(), 2)
+        before = self.state()
+        self.touch("touchMove", [{**right, "x": 1, "y": 1}, press])
+        self.advance(40)
+        self.assertGreater(self.state()[2], before[2])
+        self.assertEqual(self.page.evaluate("scrollY"), 0)
+        self.touch("touchEnd")
+        before = self.state()
+        self.advance(40)
+        self.assertEqual(self.state()[2], before[2])
+        self.assertEqual(self.state()[5], before[5])
+        self.assertGreater(self.state()[3], before[3])
+        self.assertEqual(self.page.locator('[data-touch][aria-pressed="true"]').count(), 0)
+
+        self.page.keyboard.down("ArrowRight")
+        self.touch("touchStart", [right])
+        self.page.keyboard.up("ArrowRight")
+        before = self.state()
+        self.advance(40)
+        self.assertGreater(self.state()[2], before[2])
+        self.touch("touchEnd")
+
+    def test_phone_cancel_capture_and_focus_cleanup(self):
+        self.open_touch_preview()
+        self.advance(200, 45)
+        right_button = self.page.locator('[data-touch="ArrowRight"]')
+        right_button.tap()
+        right = self.touch_point("ArrowRight")
+        self.touch("touchStart", [right])
+        self.touch("touchCancel")
+        before = self.state()
+        self.advance(40)
+        self.assertEqual(self.state()[2], before[2])
+        self.assertGreater(self.state()[3], before[3])
+        self.assertEqual(right_button.get_attribute("aria-pressed"), "false")
+
+        right_button.evaluate("""button => button.addEventListener("pointerdown",
+            event => { button.dataset.testPointer = event.pointerId; }, {once: true})""")
+        self.touch("touchStart", [right])
+        self.touch("touchMove", [{**right, "x": right["x"] + 1}])
+        right_button.evaluate("""button =>
+            button.releasePointerCapture(Number(button.dataset.testPointer))""")
+        self.touch("touchMove", [{**right, "x": right["x"] + 2}])
+        before = self.state()
+        self.advance(40)
+        self.assertEqual(self.state()[2], before[2])
+        self.assertGreater(self.state()[3], before[3])
+        self.assertEqual(right_button.get_attribute("aria-pressed"), "false")
+        self.touch("touchEnd")
+
+        for target, event_type in (("window", "blur"), ("document", "visibilitychange"),
+                                   ("window", "resize"), ("window", "pagehide")):
+            with self.subTest(event=event_type):
+                self.touch("touchStart", [right])
+                self.assertEqual(right_button.get_attribute("aria-pressed"), "true")
+                self.page.evaluate("""([target, type]) =>
+                    (target === "document" ? document : window)
+                        .dispatchEvent(new Event(type))""", [target, event_type])
+                before = self.state()
+                self.advance(40)
+                self.assertEqual(self.state()[2], before[2])
+                self.assertGreater(self.state()[3], before[3])
+                self.assertEqual(right_button.get_attribute("aria-pressed"), "false")
+                self.touch("touchEnd")
+
+        self.touch("touchStart", [right])
+        self.page.locator("#lcd").evaluate("canvas => canvas.blur()")
+        before = self.state()
+        self.advance(200)
+        self.assertEqual(self.state(), before)
+        self.page.locator("#lcd").focus()
+        self.advance(40)
+        self.assertEqual(self.state()[2], before[2])
+        self.touch("touchEnd")
+
+    def test_phone_receipt_restart_and_accessible_activation(self):
+        self.open_touch_preview()
+        original = self.page.evaluate("drivingPreview.module._preview_artwork()")
+        self.page.locator('[data-touch="ArrowDown"]').focus()
+        self.page.keyboard.press("Enter")
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"),
+                         1 - original)
+        self.page.wait_for_function("""() =>
+            document.querySelectorAll('[data-touch][aria-pressed="true"]').length === 0""")
+        self.advance(200, 45)
+        self.page.locator('[data-touch="ArrowRight"]').tap()
+        self.touch("touchStart", [self.touch_point("ArrowLeft")])
+        self.page.evaluate("""() => {
+            for (let i = 0; i < 400 && drivingPreview.module._preview_phase() === 3; i++)
+                drivingPreview.step(200);
+        }""")
+        self.touch("touchEnd")
+        self.assertEqual(self.state()[0], 4)
+        self.page.locator('[data-touch="Space"]').tap()
+        self.advance(200, 31)
+        self.assertEqual(self.state()[0], 5)
+        balance = self.state()[4]
+        self.assertTrue(self.page.locator("#artwork-toggle").is_disabled())
+        self.page.locator('[data-touch="ArrowRight"]').tap()
+        self.advance(200, 16)
+        self.assertEqual(self.state()[:2], [3, 0])
+        self.assertEqual(self.state()[4], balance)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_damage()"), 0)
+        before = self.state()
+        self.page.locator('[data-touch="ArrowRight"]').evaluate("""button => {
+            button.click();
+            drivingPreview.step(40);
+        }""")
+        self.assertGreater(self.state()[2], before[2])
+        self.page.wait_for_function("""() =>
+            document.querySelectorAll('[data-touch][aria-pressed="true"]').length === 0""")
+        before = self.state()
+        self.advance(40)
+        self.assertEqual(self.state()[2], before[2])
+
+    def test_phone_portrait_and_landscape_layout(self):
+        self.open_touch_preview(320, 568)
+        self.advance(200, 45)
+        self.page.locator('[data-touch="ArrowRight"]').tap()
+        self.advance(200, 8)
+        for width, height in ((320, 568), (390, 844), (700, 360), (844, 390)):
+            with self.subTest(width=width, height=height):
+                self.page.set_viewport_size({"width": width, "height": height})
+                self.assertLessEqual(
+                    self.page.evaluate("document.documentElement.scrollWidth"), width)
+                self.assertTrue(self.page.locator("#touch-controls").is_visible())
+                self.assertTrue(self.page.locator("[data-touch]").evaluate_all("""buttons =>
+                    buttons.length === 5 && buttons.every((button, index) => {
+                        const r = button.getBoundingClientRect(), rest = buttons.slice(index + 1);
+                        return r.width >= 44 && r.height >= 44 && r.left >= 0 &&
+                            r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight &&
+                            rest.every(other => {
+                                const s = other.getBoundingClientRect();
+                                return r.right <= s.left || s.right <= r.left ||
+                                    r.bottom <= s.top || s.bottom <= r.top;
+                            });
+                    })"""))
+                self.assertTrue(self.page.locator("#lcd").evaluate("""canvas => {
+                    const r = canvas.getBoundingClientRect();
+                    return r.left >= 0 && r.right <= innerWidth &&
+                        r.top >= 0 && r.bottom <= innerHeight;
+                }"""))
+                if width in (320, 700):
+                    self.page.screenshot(
+                        path=str(OUTPUT / "screenshots" / f"phone-{width}x{height}.png"))
 
     def test_hidden_down_switches_during_splash(self):
         self.open_preview()

@@ -410,7 +410,7 @@ namespace
 			hit(game, 0, kind);
 			const bool vehicle =
 			  kind != ObjectKind::Cone && kind != ObjectKind::Barrier;
-			assert(game.damage == (kind == ObjectKind::Cone ? 2 : 5));
+			assert(game.damage == (kind == ObjectKind::Cone ? 1 : 3));
 			assert(game.stars == 0 && game.carHits == (vehicle ? 1 : 0));
 			expect_rgb(game, 0, 0xff8000);
 		}
@@ -501,7 +501,20 @@ namespace
 		game.police[0] = {game.carX, game.carY + 2, true, 0, true};
 		game.graceMs   = GraceMs;
 		game.advance(TickMs, 0);
+		assert(game.phase == Phase::Playing && game.stars == 5 &&
+		       game.damage == PoliceDamage && game.protection.tagDenials == 1);
+		game.police[0] = {game.carX, game.carY + 2, true, 0, true};
+		game.graceMs   = 0;
+		game.advance(TickMs, 0);
+		assert(game.phase == Phase::Playing && game.stars == 5 &&
+		       game.damage == 2 * PoliceDamage &&
+		       game.protection.tagDenials == 2);
+		game.damage    = 100 - PoliceDamage;
+		game.police[0] = {game.carX, game.carY + 2, true, 0, true};
+		game.graceMs   = 0;
+		game.advance(TickMs, 0);
 		assert(game.phase == Phase::Wasted && game.damage == 100);
+		assert(game.protection.tagDenials == 3 && !game.protection.failed());
 		expect_rgb(game, 0xff0000, 0xff0000);
 
 		game           = playing();
@@ -1194,7 +1207,7 @@ namespace
 
 	void scene_fixtures()
 	{
-		for (int scene = 1; scene <= 28; ++scene)
+		for (int scene = 1; scene <= 29; ++scene)
 		{
 			Game game;
 			assert(test::prepare_scene(game, scene));

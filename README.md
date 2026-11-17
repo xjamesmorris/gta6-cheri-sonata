@@ -37,16 +37,24 @@ QR screen; any fresh direction/center press returns to the title, as does a
 click on the QR canvas in the browser.
 
 Use the joystick on the board, or arrow keys and Space/Enter in the browser.
+Phones and narrow browser windows show a touch joystick: hold the arrows to
+drive, combine directions with multiple fingers, and use **PRESS** for the
+center button. Portrait and landscape layouts keep the game and controls
+together; scrolling and zooming remain available outside the joystick.
 The browser's artwork button is enabled only during the splash fade, wallpaper
 hold and title prompt. It is disabled during play, WASTED, billing and the
 source QR screen, including synthetic click events. Artwork selection survives
 runs and soft resets; a power reset (or browser reload) restores the build's
-initial selection. Focus loss pauses the browser and clears held keys.
+initial selection. Focus loss pauses the browser and clears held input.
+Cancelled touches, page hiding and resizing also release the touch controls.
 
 - Steer through cars, trucks, buses and trailers; collect cash and gold.
 - Vehicle collisions build wanted stars. Police appear from three stars,
-  aim once per pass, and can explode on collisions. Police hits are fatal
-  at five stars.
+  aim once per pass, and can explode on collisions. Police hits use normal
+  damage and collision grace even at five stars; there is no instant-loss rule.
+- The damage limit stays **100**. A roadside scrape or cone costs **1**,
+  a barrier or traffic vehicle **3**, and a police hit **6**. Wanted-star
+  progression, collision cooldowns and police scheduling are unchanged.
 - Damage, escape timers, decorative roadside scenes, user LEDs and two RGB
   status LEDs share the same game state in firmware and the preview.
 - Billboards vary between BUY / MORE, NO / REFUND, PAY / TOLL, STAY / COOL,
@@ -114,8 +122,9 @@ splash Down input.
 ```
 
 This builds the browser preview using the locked Emscripten toolchain and runs
-ASan/UBSan native tests, browser input/focus/restart/billing checks, native/Wasm
-trace comparisons, LED checks and renderer/pixel checks. Playwright uses the
+ASan/UBSan native tests, keyboard/touch input, cancellation, phone layouts,
+focus/restart/billing checks, native/Wasm trace comparisons, LED checks and
+renderer/pixel checks. Playwright uses the
 pinned Chromium with its sandbox enabled. Test screenshots remain under
 `build/game-preview/screenshots`.
 
@@ -164,6 +173,7 @@ operator-specific directory layout.
 ./tools/sim-test source-qr
 ./tools/sim-test billboard
 ./tools/sim-test frog
+./tools/sim-test police-survival
 ./tools/sim-test --all
 ```
 
@@ -177,6 +187,8 @@ The two WASTED fixtures freeze the shared color/LED fade at its midpoint and
 completed monochrome frame.
 The billboard fixture shows the NO / REFUND variant; `frog` freezes a crossing
 mid-hop. Both use the shared renderer and exact LCD/native comparison.
+`police-survival` checks a survivable five-star police impact and a second
+contact suppressed by collision grace, including the actual tag-fault count.
 `source-qr` additionally decodes the rendered QR to verify the source URL.
 
 `cheri-selftest` exercises actual tag, bounds and store-permission faults,

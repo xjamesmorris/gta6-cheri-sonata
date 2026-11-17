@@ -10,7 +10,10 @@
   const boardLeds = document.querySelectorAll("[data-board-status]");
   const artworkButton = document.getElementById("artwork-toggle");
   const artworkName = document.getElementById("artwork-name");
+  const touchButtons = document.querySelectorAll("[data-touch]");
   const keys = new Set();
+  const pointerInputs = new Map();
+  const pulseTimers = new Map();
   const inputs = new Map([
     ["ArrowLeft", 1], ["ArrowRight", 2], ["ArrowUp", 4],
     ["ArrowDown", 8], ["Space", 16], ["Enter", 16],
@@ -24,11 +27,33 @@
     status.dataset.error = "true";
     status.textContent = `Preview failed: ${error.message || error}`;
     if (artworkButton) artworkButton.disabled = true;
+    clearInput();
+    for (const button of touchButtons) button.disabled = true;
     console.error(error);
+  }
+
+  function inputMask() {
+    let input = 0;
+    for (const key of keys) input |= inputs.get(key);
+    for (const value of pointerInputs.values()) input |= value;
+    return input;
+  }
+
+  function updateTouchButtons() {
+    const input = inputMask();
+    for (const button of touchButtons) {
+      const pressed = (input & inputs.get(button.dataset.touch)) !== 0;
+      button.classList.toggle("is-pressed", pressed);
+      button.setAttribute("aria-pressed", String(pressed));
+    }
   }
 
   function clearInput() {
     keys.clear();
+    pointerInputs.clear();
+    for (const timer of pulseTimers.values()) clearTimeout(timer);
+    pulseTimers.clear();
+    updateTouchButtons();
     previous = null;
   }
 
@@ -161,11 +186,9 @@
 
     function step(milliseconds) {
       if (!paused() && !stopped) {
-        let input = 0;
-        for (const key of keys) input |= inputs.get(key);
         const elapsed = Math.max(0, Math.min(milliseconds, 200));
         indicatorMs += elapsed;
-        module._preview_advance(elapsed, input);
+        module._preview_advance(elapsed, inputMask());
         if (module._preview_protection_failed()) {
           fail(new Error("Capability protection invariant failed; game stopped."));
         }
@@ -174,19 +197,67 @@
     }
 
     window.addEventListener("keydown", (event) => {
-      if (document.activeElement === canvas && inputs.has(event.code) &&
+      if (!stopped && document.activeElement === canvas && inputs.has(event.code) &&
           !event.ctrlKey && !event.altKey && !event.metaKey) {
         event.preventDefault();
         keys.add(event.code);
+        updateTouchButtons();
         step(0);
       }
     });
     window.addEventListener("keyup", (event) => {
       if (keys.delete(event.code)) {
         event.preventDefault();
+        updateTouchButtons();
         step(0);
       }
     });
+    function pressTouch(id, input) {
+      canvas.focus({ preventScroll: true });
+      if (inputMask() === 0) module._preview_advance(0, 0);
+      pointerInputs.set(id, input);
+      updateTouchButtons();
+      step(0);
+    }
+
+    for (const button of touchButtons) {
+      const input = inputs.get(button.dataset.touch);
+      if (input === undefined) throw new Error("Unknown touch joystick input.");
+      button.disabled = stopped;
+      button.addEventListener("pointerdown", (event) => {
+        if (stopped || event.button !== 0) return;
+        event.preventDefault();
+        button.setPointerCapture(event.pointerId);
+        pressTouch(event.pointerId, input);
+      });
+      const release = (event) => {
+        if (pointerInputs.delete(event.pointerId)) {
+          updateTouchButtons();
+          step(0);
+        }
+      };
+      for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) {
+        button.addEventListener(type, release);
+      }
+      button.addEventListener("contextmenu", (event) => event.preventDefault());
+      button.addEventListener("click", (event) => {
+        // Pointer gestures are handled above; keyboard/assistive clicks need a pulse.
+        if (stopped || event.detail !== 0 || event.pointerType) return;
+        const id = `pulse:${button.dataset.touch}`;
+        clearTimeout(pulseTimers.get(id));
+        pointerInputs.delete(id);
+        pressTouch(id, input);
+        if (stopped) return;
+        const timer = setTimeout(() => {
+          if (pulseTimers.get(id) !== timer) return;
+          pulseTimers.delete(id);
+          pointerInputs.delete(id);
+          updateTouchButtons();
+          step(0);
+        }, 120);
+        pulseTimers.set(id, timer);
+      });
+    }
     canvas.addEventListener("blur", clearInput);
     canvas.addEventListener("focus", clearInput);
     canvas.addEventListener("click", () => {
@@ -195,7 +266,7 @@
         module._preview_advance(0, 0);
         module._preview_advance(0, 16);
         module._preview_advance(0, 0);
-        canvas.focus();
+        canvas.focus({ preventScroll: true });
         render();
       }
     });
@@ -204,11 +275,13 @@
       clearInput();
       module._preview_advance(0, 0);
       module._preview_toggle_artwork();
-      canvas.focus();
+      canvas.focus({ preventScroll: true });
       render();
     });
     window.addEventListener("blur", clearInput);
     window.addEventListener("focus", clearInput);
+    window.addEventListener("resize", clearInput);
+    window.addEventListener("pagehide", clearInput);
     document.addEventListener("visibilitychange", clearInput);
     canvas.focus();
     render();
@@ -223,7 +296,7 @@
         previous = now - (previous === null ? 0 : (now - previous - elapsed));
         status.textContent = paused()
           ? "Paused. Focus the game to continue."
-          : "Shared C++ firmware gameplay - browser display and keyboard adapter.";
+          : "Shared C++ firmware gameplay - browser display, keyboard and touch adapter.";
         requestAnimationFrame(animate);
       } catch (error) {
         fail(error);

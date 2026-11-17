@@ -38,6 +38,22 @@ namespace driving::test
 			return game.phase == Phase::SourceQr;
 		}
 		game.advance(0, Right);
+		if (scene == 29)
+		{
+			game.stars = 5;
+			for (unsigned hit = 0; hit < 2; ++hit)
+			{
+				game.police[0] = {game.carX, game.carY + 2, true, 0, true};
+				game.advance(TickMs, 0);
+				if (game.phase != Phase::Playing || game.stars != 5 ||
+				    game.damage != PoliceDamage ||
+				    game.protection.tagDenials != 1 || game.protection.failed())
+				{
+					return false;
+				}
+			}
+			return true;
+		}
 		if (scene == 28)
 		{
 			const Bounds road = game.road_bounds(58);
@@ -155,6 +171,7 @@ namespace driving::test
 			drive_clean(game, RecoveryMs);
 			return game.stars == 0 && game.phase == Phase::Playing;
 		}
+		game.damage    = 100 - PoliceDamage;
 		game.graceMs   = 0;
 		game.police[0] = {game.carX, game.carY + 2, true, 0, true};
 		game.advance(TickMs, 0);

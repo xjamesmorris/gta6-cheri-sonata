@@ -19,12 +19,16 @@ latest separately approved deployment.
 | Enable the web artwork button only while the splash is visible | [xjamesmorris/gta6-cheri-sonata#1](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/1) | Implemented on main |
 | Add several billboard messages | [xjamesmorris/gta6-cheri-sonata#2](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/2) | Implemented on main |
 | Occasional green frog road crossings | [xjamesmorris/gta6-cheri-sonata#3](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/3) | Implemented on main |
+| Phone touch joystick and portrait/landscape layouts | Owner-requested usability work | Implemented on main |
+| Gentler collision damage and survivable five-star police hits | Owner-requested gameplay tuning | Implemented on main |
 
 The current frog implementation is decorative and non-colliding: it does not
 change score, damage, wanted stars or wallet authority.
 
 - [x] Integrate the three tracked post-release gameplay changes.
 - [x] Record native/browser/RTL results and image-specific hardware startup.
+- [ ] Flash and physically playtest the later damage-tuning image with separate
+  authorization; earlier startup records do not cover the new build.
 - [ ] Complete extended physical playtesting and stress checks.
 - [ ] Select and publish the next tagged firmware release when approved; keep
   the 1.0.0 tag and firmware assets unchanged.
@@ -78,8 +82,10 @@ hardware-enforced level access.
   check; do not treat simulator success as physical acceptance.
 - [ ] Playtest traffic, wanted-star and billing pacing while preserving the
   documented CHERI demonstrations.
-- [ ] Consider touch controls and accessibility refinements for smaller
-  browser screens without changing the board's control scheme.
+- [x] Add touch controls, labelled buttons and compact portrait/landscape layouts
+  without changing the board's control scheme.
+- [ ] Broaden phone, tablet and accessibility playtesting, including real
+  devices and assistive technologies.
 - [ ] Keep the [screenshots and video](screenshots.md), controls, build
   instructions and verification records aligned with each release.
 

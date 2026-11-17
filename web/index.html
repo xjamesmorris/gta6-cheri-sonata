@@ -21,18 +21,54 @@
       #artwork-toggle { margin: 8px 4px 4px; padding: 3px 8px; font-size: 12px; line-height: 1.2; cursor: pointer; }
       #artwork-toggle:disabled { cursor: default; opacity: 0.5; }
       #artwork-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      #touch-controls { display: none; width: max-content; margin: 8px auto; grid-template-areas: ". up ." "left press right" ". down ."; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 48px); gap: 4px; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+      #touch-controls button { width: 48px; height: 48px; padding: 0; border: 1px solid #686880; border-radius: 8px; background: #252538; color: #f4f4fa; font: inherit; font-size: 24px; line-height: 1; cursor: pointer; touch-action: none; }
+      #touch-controls button.is-pressed { background: #9acdf5; color: #101016; }
+      #touch-controls button:focus-visible { outline: 2px solid #a0cdf5; outline-offset: 2px; }
+      #touch-controls button:disabled { opacity: 0.5; cursor: default; }
+      #touch-controls [data-touch="ArrowUp"] { grid-area: up; }
+      #touch-controls [data-touch="ArrowLeft"] { grid-area: left; }
+      #touch-controls [data-touch="Space"] { grid-area: press; font-size: 10px; font-weight: bold; }
+      #touch-controls [data-touch="ArrowRight"] { grid-area: right; }
+      #touch-controls [data-touch="ArrowDown"] { grid-area: down; }
+      .touch-hint { display: none; margin: 4px 0 8px; font-size: 12px; }
       p { line-height: 1.5; color: #c9c9d5; }
       #status[data-error] { color: #ff9b9b; }
+      @media (any-pointer: coarse), (max-width: 600px) {
+        main { max-width: calc(100vw - 24px); padding: 12px; }
+        h1 { margin: 0 0 8px; font-size: 1.05rem; }
+        canvas { width: min(80vw, 40vh, 320px); width: min(80vw, 40dvh, 320px); }
+        #touch-controls { display: grid; }
+        .touch-hint { display: block; }
+      }
+      @media (orientation: landscape) and (max-height: 500px) {
+        #play-area { display: flex; align-items: center; justify-content: center; gap: 16px; }
+        #screen-panel { min-width: 0; }
+        canvas { width: min(42vw, 55vh); width: min(42vw, 55dvh); }
+        #touch-controls { margin: 0; }
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>Grand Time Auto</h1>
-      <canvas id="lcd" width="128" height="160" tabindex="0" aria-label="Portrait driving game. Right starts play at the title menu. Down changes artwork while the splash is visible. Arrow keys drive; Space or Enter presses the joystick."></canvas>
-      <div>
-        <button id="artwork-toggle" type="button" aria-controls="lcd" disabled>switch artwork</button>
-        <span id="artwork-name" role="status"></span>
+      <div id="play-area">
+        <div id="screen-panel">
+          <canvas id="lcd" width="128" height="160" tabindex="0" aria-label="Portrait driving game. Right starts play at the title menu. Down changes artwork while the splash is visible. Use the touch joystick or arrow keys to drive; PRESS, Space or Enter presses the joystick."></canvas>
+          <div>
+            <button id="artwork-toggle" type="button" aria-controls="lcd" disabled>switch artwork</button>
+            <span id="artwork-name" role="status"></span>
+          </div>
+        </div>
+        <div id="touch-controls" role="group" aria-label="Touch joystick">
+          <button type="button" data-touch="ArrowUp" aria-label="Joystick up" aria-pressed="false" disabled>&uarr;</button>
+          <button type="button" data-touch="ArrowLeft" aria-label="Joystick left" aria-pressed="false" disabled>&larr;</button>
+          <button type="button" data-touch="Space" aria-label="Press joystick" aria-pressed="false" disabled>PRESS</button>
+          <button type="button" data-touch="ArrowRight" aria-label="Joystick right" aria-pressed="false" disabled>&rarr;</button>
+          <button type="button" data-touch="ArrowDown" aria-label="Joystick down" aria-pressed="false" disabled>&darr;</button>
+        </div>
       </div>
+      <p class="touch-hint">Hold arrows to drive. Right starts play; PRESS confirms after WASTED.</p>
       <div id="leds" role="group" aria-label="Onboard user LEDs, 7 to 0">
         <span role="img" data-led="7">7</span><span role="img" data-led="6">6</span>
         <span role="img" data-led="5">5</span><span role="img" data-led="4">4</span>
@@ -60,11 +96,11 @@
       </div>
       <p>Title: Right plays story mode &middot; Hidden splash control: Down changes artwork<br>
         The artwork button is available only while the splash is visible.<br>
-        Arrow keys: drive &middot; Space / Enter: press<br>
+        Touch joystick or arrow keys: drive &middot; PRESS / Space / Enter: press<br>
         Car hits build yellow heat into red stars. Green flashing means you are escaping.<br>
         Denser traffic includes trucks, buses, and trailers. Police arrive at three stars and aim only once per pass.<br>
         Billboards vary their messages; occasional green frogs hop across the road without changing score or damage.<br>
-        Police collisions are fatal at five. Police can explode when they hit solid objects.<br>
+        Police hits add 6 damage at every wanted level; WASTED starts at 100 damage.<br>
         R2 flashes green for cash/small gold, gold for large gold, and orange for damage.<br>
         WASTED holds red for 3 seconds, then fades to monochrome over 6 seconds
         as both RGB LEDs turn purple and dim to off.<br>

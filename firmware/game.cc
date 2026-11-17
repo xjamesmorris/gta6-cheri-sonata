@@ -619,7 +619,6 @@ namespace driving
 		{
 			return;
 		}
-		const bool    fatalPolice = policeHits != 0 && stars == 5;
 		contact |= policeHits != 0;
 		carContact |= policeHits != 0;
 		impactDamage += policeHits * PoliceDamage;
@@ -660,13 +659,8 @@ namespace driving
 			}
 			damageFlashMs = DamageFlashMs;
 		}
-		if (fatalPolice || damage == 100)
+		if (damage == 100)
 		{
-			if (fatalPolice && damage == previousDamage &&
-			    !protection.damage_fault())
-			{
-				return;
-			}
 			enter_wasted(input);
 			return;
 		}

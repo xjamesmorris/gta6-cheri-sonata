@@ -141,7 +141,7 @@ compare its exact UF2 digest with the recorded image.
 The post-release image with splash-only web artwork controls, varied billboard
 messages and decorative frog crossings is 384000 bytes, SHA-256
 `37abe6fb02a002eb225e02bbc161763f06a4a3ea9316eeddd7e5cc043b164124`.
-The updated public-tree build reproduces this UF2 byte-for-byte.
+The public-tree build at commit `4be894c` reproduced this UF2 byte-for-byte.
 It was separately approved and loaded into application slot 2 through the
 guarded loader. Fresh output reported selected slot 2, `PASS hardware`, the
 CHERIoT hardware backend, `Wallpaper ready` and title `Screen 2`.
@@ -157,3 +157,21 @@ and 61,440 RGB channels against the native renderer. These code/data changes
 do not grant additional MMIO or wallet authority. The frog is decorative and
 non-colliding, and its independent random stream preserves traffic generation.
 The archived version 1.0.0 image and release assets remain unchanged.
+
+## Later phone controls and damage tuning
+
+The retuned 384000-byte slot-2 build has SHA-256
+`11969b65ae57d58b45ea629408912f5f718343698294900d8acc31544457723b`.
+The firmware build/audit, native/sanitizer suites and 22 public browser tests
+passed. Browser coverage uses Chromium touch emulation, not physical phones.
+
+The `police-survival` RTL fixture checks a survivable five-star hit and a
+second contact during collision grace: total recovered faults were tag 3,
+bounds 2, store 3 and local-store 0, including startup. The `hospital` fixture
+checks a full-damage collision, billing and restart; its totals were tag 15,
+bounds 2, store 3 and local-store 0. Both matched all 20,480 LCD pixels and
+61,440 RGB channels against the native renderer.
+
+No additional hardware load was performed for this update. The board still
+runs the recorded pre-tuning image; the new build requires its own approved
+load and physical verification. Version 1.0.0 remains unchanged.
