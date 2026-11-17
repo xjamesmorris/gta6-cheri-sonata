@@ -887,6 +887,125 @@ namespace
 		}
 	}
 
+	void billboard_messages()
+	{
+		Game game = playing();
+		game.scenery = {0, 50, SceneryKind::Billboard, true};
+		std::array<std::array<uint8_t, FrameBytes>, BillboardMessageCount> frames{};
+		for (size_t message = 0; message < BillboardMessageCount; ++message)
+		{
+			game.scenery.billboardMessage = static_cast<uint8_t>(message);
+			std::memcpy(frames[message].data(), render(game).pixels, FrameBytes);
+			for (size_t previous = 0; previous < message; ++previous)
+			{
+				assert(std::memcmp(frames[message].data(), frames[previous].data(),
+				                   FrameBytes) != 0);
+			}
+		}
+	}
+
+	void frog_crossings()
+	{
+		for (bool rightward : {false, true})
+		{
+			Game game = playing();
+			assert(game.protection.credit(500, game.money));
+			const Bounds road = game.road_bounds(SceneryHeight + FrogHeight / 2);
+			const int left = road.left - FrogWidth - 2;
+			const int right = road.right + 2;
+			game.frog = {static_cast<int16_t>(rightward ? left : right),
+			             SceneryHeight,
+			             static_cast<int16_t>(rightward ? right : left),
+			             true, rightward, 0};
+			const int start = game.frog.x;
+			safe_tick(game);
+			assert(game.frog.active && game.frog.x == start);
+			safe_tick(game);
+			safe_tick(game);
+			assert(rightward ? game.frog.x > start : game.frog.x < start);
+			for (unsigned ticks = 0; game.frog.active && ticks < 80; ++ticks)
+			{
+				safe_tick(game);
+			}
+			assert(!game.frog.active && game.phase == Phase::Playing);
+			assert(game.money == 500 && game.damage == 0 && game.stars == 0);
+
+			game.frog = {static_cast<int16_t>(game.carX),
+			             static_cast<int16_t>(game.carY - 2),
+			             static_cast<int16_t>(Width), true, true, 0};
+			safe_tick(game);
+			assert(game.frog.y == game.carY && game.damage == 0 && game.money == 500);
+			assert(game.protection.tagDenials == 0 && game.protection.walletDenials == 0);
+			game.frog.y = Height - 1;
+			safe_tick(game);
+			assert(!game.frog.active);
+		}
+
+		Game first = playing(19);
+		Game second = playing(19);
+		unsigned appearances = 0;
+		unsigned completed = 0;
+		uint32_t firstAt = 0;
+		for (unsigned ticks = 0; ticks < 2'000 && appearances < 2; ++ticks)
+		{
+			const bool wasActive = first.frog.active;
+			safe_tick(first);
+			safe_tick(second);
+			assert(first.frog.active == second.frog.active &&
+			       first.frog.x == second.frog.x && first.frog.y == second.frog.y &&
+			       first.frog.goalX == second.frog.goalX &&
+			       first.frog.rightward == second.frog.rightward &&
+			       first.frog.hopMs == second.frog.hopMs);
+			if (first.frog.active)
+			{
+				assert(first.frog.x >= 0 && first.frog.x + FrogWidth <= Width &&
+				       first.frog.y >= SceneryHeight && first.frog.y < Height);
+				if (!wasActive)
+				{
+					++appearances;
+					if (appearances == 1)
+					{
+						firstAt = first.activeMs;
+						assert(firstAt >= 12'000 && firstAt <= 20'000);
+					}
+					else
+					{
+						assert(first.activeMs - firstAt >= 20'000 &&
+						       first.activeMs - firstAt <= 40'000);
+					}
+				}
+			}
+			else if (wasActive)
+			{
+				++completed;
+			}
+		}
+		assert(appearances == 2 && completed == 1 && first.damage == 0 && first.money == 0);
+		const Frog frozen = first.frog;
+		first.phase = Phase::Wasted;
+		first.advance(1'000, 0);
+		assert(first.frog.x == frozen.x && first.frog.y == frozen.y &&
+		       first.frog.hopMs == frozen.hopMs);
+		first.reset();
+		first.advance(FadeMs + PromptDelayMs + 60'000, 0);
+		assert(first.phase == Phase::Prompt && !first.frog.active);
+
+		Game scene = playing();
+		scene.frog = {40, 50, 100, true, true, 0};
+		unsigned green = 0;
+		const Frame frame = render(scene);
+		for (int y = 50; y < 50 + FrogHeight; ++y)
+		{
+			for (int x = 40; x < 40 + FrogWidth; ++x)
+			{
+				green += at(frame, x, y) == 0x07e0;
+			}
+		}
+		assert(green > 20);
+		scene.frog.active = false;
+		assert(at(render(scene), 42, 52) != 0x07e0);
+	}
+
 	void world_and_steering()
 	{
 		assert(joystick_input((1u << 8) | (1u << 10)) == (Left | Press));
@@ -931,6 +1050,7 @@ namespace
 		uint8_t  lootValues   = 0;
 		uint8_t  vehicleKinds = 0;
 		uint8_t  sceneryKinds = 0;
+		uint8_t  billboardMessages = 0;
 		unsigned objects      = 0;
 		unsigned vehicles     = 0;
 		for (uint32_t seed = 0; seed < 64; ++seed)
@@ -998,6 +1118,12 @@ namespace
 				}
 				if (game.scenery.active)
 				{
+					if (game.scenery.kind == SceneryKind::Billboard)
+					{
+						assert(game.scenery.billboardMessage < BillboardMessageCount);
+						billboardMessages |= static_cast<uint8_t>(
+						  1u << game.scenery.billboardMessage);
+					}
 					if (game.scenery.y == -SceneryHeight)
 					{
 						if (lastScenery != 0)
@@ -1036,6 +1162,8 @@ namespace
 		        (1u << static_cast<unsigned>(ObjectKind::Bus)) |
 		        (1u << static_cast<unsigned>(ObjectKind::Trailer))));
 		assert(sceneryKinds == 15);
+		assert(billboardMessages != 0 &&
+		       (billboardMessages & (billboardMessages - 1)) != 0);
 	}
 
 	void descending_leds()
@@ -1066,7 +1194,7 @@ namespace
 
 	void scene_fixtures()
 	{
-		for (int scene = 1; scene <= 27; ++scene)
+		for (int scene = 1; scene <= 28; ++scene)
 		{
 			Game game;
 			assert(test::prepare_scene(game, scene));
@@ -1325,6 +1453,8 @@ int main()
 	pickup_and_damage_indicators();
 	wasted_screen_and_led_fade();
 	decorative_scenery();
+	billboard_messages();
+	frog_crossings();
 	world_and_steering();
 	descending_leds();
 	scene_fixtures();

@@ -75,6 +75,7 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual(self.page.title(), "Grand Time Auto")
         self.assertEqual(self.page.evaluate("drivingPreview.module._preview_protection_origin()"), 0)
         self.assertIn("emulated", self.page.locator("#protection-mode").inner_text().lower())
+        self.assertIsNone(self.page.locator("#artwork-toggle").get_attribute("disabled"))
 
     def advance(self, milliseconds, count=1):
         self.page.evaluate(
@@ -514,6 +515,10 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual(self.state()[0], 2)
         self.page.keyboard.down("ArrowLeft")
         self.assertEqual(self.state()[0], 6)
+        self.assertIsNotNone(button.get_attribute("disabled"))
+        self.page.evaluate("""() => document.getElementById("artwork-toggle")
+            .dispatchEvent(new MouseEvent("click", {bubbles: true}))""")
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), original)
         self.advance(200, 5)
         self.assertEqual(self.state()[0], 6)
         self.page.keyboard.up("ArrowLeft")
@@ -524,13 +529,33 @@ class BrowserTests(unittest.TestCase):
         )
         self.page.locator("#lcd").click()
         self.assertEqual(self.state()[0], 2)
+        self.assertIsNone(button.get_attribute("disabled"))
         self.page.keyboard.press("ArrowRight")
         self.assertEqual(self.state()[0], 3)
         self.advance(40, 4)
         before = self.state()
-        self.page.locator("#artwork-toggle").click()
+        self.assertIsNotNone(button.get_attribute("disabled"))
+        self.page.evaluate("""() => document.getElementById("artwork-toggle")
+            .dispatchEvent(new MouseEvent("click", {bubbles: true}))""")
         self.assertEqual(self.state(), before)
-        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), 1 - original)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), original)
+
+    def test_artwork_button_reenables_after_reset(self):
+        self.open_preview()
+        self.advance(200, 45)
+        self.page.keyboard.press("ArrowRight")
+        button = self.page.locator("#artwork-toggle")
+        self.assertIsNotNone(button.get_attribute("disabled"))
+        self.drive_to_wasted()
+        self.assertIsNotNone(button.get_attribute("disabled"))
+        self.page.keyboard.press("Space")
+        self.advance(200, 31)
+        self.assertEqual(self.state()[0], 5)
+        self.assertIsNotNone(button.get_attribute("disabled"))
+        self.page.keyboard.press("ArrowLeft")
+        self.advance(200, 8)
+        self.assertEqual(self.state()[0], 0)
+        self.assertIsNone(button.get_attribute("disabled"))
 
     def test_title_does_not_start_automatic_play(self):
         self.open_preview()
@@ -585,9 +610,11 @@ class BrowserTests(unittest.TestCase):
         self.page.keyboard.press("ArrowRight")
         self.assertEqual(self.state()[0], 3)
         before = self.state()
-        self.page.locator("#artwork-toggle").click()
+        self.assertIsNotNone(self.page.locator("#artwork-toggle").get_attribute("disabled"))
+        self.page.evaluate("""() => document.getElementById("artwork-toggle")
+            .dispatchEvent(new MouseEvent("click", {bubbles: true}))""")
         self.assertEqual(self.state(), before)
-        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), original)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), 1 - original)
 
     def test_small_viewport_keeps_leds_and_controls_visible(self):
         self.page.set_viewport_size({"width": 320, "height": 700})

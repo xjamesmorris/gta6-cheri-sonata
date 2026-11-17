@@ -383,13 +383,26 @@ namespace
 				break;
 			}
 			case SceneryKind::Billboard:
+			{
+				static constexpr const char *Messages[][2] = {
+				  {"BUY", "MORE"}, {"NO", "REFUND"}, {"PAY", "TOLL"},
+				  {"STAY", "COOL"}, {"JUST", "DRIVE"}, {"GOOD", "LUCK"}};
+				static_assert(sizeof(Messages) / sizeof(Messages[0]) ==
+				              BillboardMessageCount);
 				rect(x + 5, y + 15, 2, 13, 0x528a);
 				rect(x + 19, y + 15, 2, 13, 0x528a);
 				rect(x, y, SceneryWidth, 16, Black);
 				rect(x + 1, y + 1, SceneryWidth - 2, 14, 0x800e);
-				small_text("BUY", x + 7, y + 3, White);
-				small_text("MORE", x + 5, y + 9, 0xffe0);
+				const auto &message = Messages[game.scenery.billboardMessage];
+				for (int line = 0; line < 2; ++line)
+				{
+					small_text(message[line],
+					           x + (SceneryWidth - small_text_width(message[line])) / 2,
+					           y + 3 + line * 6,
+					           line == 0 ? White : 0xffe0);
+				}
 				break;
+			}
 			case SceneryKind::PoliceStation:
 				rect(x + 2, y + 8, SceneryWidth - 4, 20, 0xbdf7);
 				rect(x, y, SceneryWidth, 9, 0x001f);
@@ -599,6 +612,29 @@ namespace
 		}
 	}
 
+	void frog_sprite(const Frog &frog)
+	{
+		if (!frog.active)
+		{
+			return;
+		}
+		constexpr uint8_t Shape[FrogHeight] = {0x60, 0x36, 0x7e, 0x3f,
+		                                     0x7e, 0x36, 0x60};
+		const int y = frog.y - (frog.hopMs >= FrogHopMs / 2 ? 1 : 0);
+		for (int row = 0; row < FrogHeight; ++row)
+		{
+			for (int col = 0; col < FrogWidth; ++col)
+			{
+				if ((Shape[row] & (0x80u >> col)) != 0)
+				{
+					pixel(frog.x + (frog.rightward ? col : FrogWidth - 1 - col),
+					      y + row,
+					      col == 5 && (row == 2 || row == 4) ? Black : 0x07e0);
+				}
+			}
+		}
+	}
+
 	void driving_scene(const Game &game)
 	{
 		for (size_t i = 0; i < FrameBytes; i += 2)
@@ -620,6 +656,7 @@ namespace
 			}
 		}
 		roadside_scenery(game);
+		frog_sprite(game.frog);
 		for (const auto &obstacle : game.obstacles)
 		{
 			if (!obstacle.active)

@@ -52,7 +52,6 @@
     canvas.height = height;
     const image = context.createImageData(width, height);
     module._preview_init(1);
-    artworkButton.disabled = false;
     let indicatorMs = 0;
     const faultCounts = new Uint32Array(9);
     const lastFaultMs = new Array(9).fill(-Infinity);
@@ -63,6 +62,11 @@
       [1, () => module._preview_tag_denials()],
       [5, () => module._preview_wallet_denials()],
     ]);
+
+    function artworkAvailable() {
+      const phase = module._preview_phase();
+      return !stopped && (phase === 0 || phase === 1 || phase === 2);
+    }
 
     function render() {
       const pointer = module._preview_render();
@@ -87,6 +91,7 @@
       const artworkLabel = alternate ? "Derivative LCD artwork" : "Original LCD artwork";
       if (artworkName.textContent !== artworkLabel) artworkName.textContent = artworkLabel;
       artworkButton.setAttribute("aria-pressed", String(alternate));
+      artworkButton.disabled = !artworkAvailable();
       const mask = module._preview_led_mask();
       for (const led of leds) {
         const on = (mask & (1 << Number(led.dataset.led))) !== 0;
@@ -195,7 +200,7 @@
       }
     });
     artworkButton.addEventListener("click", () => {
-      if (stopped) return;
+      if (!artworkAvailable()) return;
       clearInput();
       module._preview_advance(0, 0);
       module._preview_toggle_artwork();

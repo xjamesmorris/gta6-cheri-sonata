@@ -19,6 +19,7 @@
       .indicator-bank span { min-width: 38px; padding: 5px; border-radius: 5px; background: #30303f; color: #999; font-size: 10px; }
       .indicator-bank .on { background: #7aff90; color: #102016; box-shadow: 0 0 5px #7aff90; }
       #artwork-toggle { margin: 8px 4px 4px; padding: 3px 8px; font-size: 12px; line-height: 1.2; cursor: pointer; }
+      #artwork-toggle:disabled { cursor: default; opacity: 0.5; }
       #artwork-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
       p { line-height: 1.5; color: #c9c9d5; }
       #status[data-error] { color: #ff9b9b; }
@@ -58,9 +59,11 @@
         <span role="img" data-cheri="8" data-name="Permit access system registers" title="Permit access system registers">SYS REG</span>
       </div>
       <p>Title: Right plays story mode &middot; Hidden splash control: Down changes artwork<br>
+        The artwork button is available only while the splash is visible.<br>
         Arrow keys: drive &middot; Space / Enter: press<br>
         Car hits build yellow heat into red stars. Green flashing means you are escaping.<br>
         Denser traffic includes trucks, buses, and trailers. Police arrive at three stars and aim only once per pass.<br>
+        Billboards vary their messages; occasional green frogs hop across the road without changing score or damage.<br>
         Police collisions are fatal at five. Police can explode when they hit solid objects.<br>
         R2 flashes green for cash/small gold, gold for large gold, and orange for damage.<br>
         WASTED holds red for 3 seconds, then fades to monochrome over 6 seconds

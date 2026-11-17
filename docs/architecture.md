@@ -111,12 +111,12 @@ electrical behavior or real-board LCD timing. The owner authorized v1.0.0 with
 these verification boundaries; release authorization does not claim exhaustive
 interactive physical acceptance.
 
-## Physical startup check: November 17, 2026
+## Version 1.0.0 physical startup: November 17, 2026
 
 The 381952-byte slot-2 UF2 image with SHA-256
 `f3663309d5d06189e0e56485ef80e453a224165d80773ad3c9ed781c860e68a7`
 was loaded through the guarded loader, selected in slot 2 and reached the
-title screen. The default local public-tree build reproduced this UF2
+title screen. The version 1.0.0 public-tree build reproduced this UF2
 byte-for-byte.
 Its actual startup checks recovered seven expected faults: two tag, two
 bounds and three store-permission faults. Wallet balances zero, positive and
@@ -135,3 +135,25 @@ This is image-specific startup evidence, not an exhaustive physical stress run
 or full interactive joystick acceptance. A rebuilt image must not inherit that
 physical verification solely because its sources or rendered pixels match;
 compare its exact UF2 digest with the recorded image.
+
+## Post-release main startup: November 17, 2026
+
+The post-release image with splash-only web artwork controls, varied billboard
+messages and decorative frog crossings is 384000 bytes, SHA-256
+`37abe6fb02a002eb225e02bbc161763f06a4a3ea9316eeddd7e5cc043b164124`.
+The updated public-tree build reproduces this UF2 byte-for-byte.
+It was separately approved and loaded into application slot 2 through the
+guarded loader. Fresh output reported selected slot 2, `PASS hardware`, the
+CHERIoT hardware backend, `Wallpaper ready` and title `Screen 2`.
+
+Startup totals were tag 2, bounds 2, store 3 and local-store 0. The normal road
+check measured 11777 cycles and 1424 stack bytes. No unexpected failure or
+reset loop appeared; the programmer was unmounted and the unfinished-load
+latch absent. No serial commands were sent. This is startup evidence, not
+exhaustive physical gameplay acceptance.
+
+The frog and updated-billboard RTL fixtures each matched all 20,480 pixels
+and 61,440 RGB channels against the native renderer. These code/data changes
+do not grant additional MMIO or wallet authority. The frog is decorative and
+non-colliding, and its independent random stream preserves traffic generation.
+The archived version 1.0.0 image and release assets remain unchanged.

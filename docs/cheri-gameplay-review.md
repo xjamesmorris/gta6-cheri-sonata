@@ -140,3 +140,19 @@ stress run or a claim that every joystick interaction was observed on the
 board. Native/browser tests and exact RTL LCD comparisons cover the `orig`
 default and hidden Down artwork navigation. The owner authorized the 1.0.0
 release; post-release gameplay enhancements remain separate.
+
+## Post-release verification
+
+The separately approved post-release image is 384000 bytes with SHA-256
+`37abe6fb02a002eb225e02bbc161763f06a4a3ea9316eeddd7e5cc043b164124`.
+Its guarded slot-2 load reached the title screen with `PASS hardware`, tag 2,
+bounds 2, store 3 and local-store 0. The observed normal road check used
+11777 cycles and 1424 stack bytes. No unexpected failure or unfinished load
+was observed; no serial input was sent.
+
+Native/browser tests cover splash-only artwork controls, billboard variation
+and bounded decorative frog behavior. The frog and updated-billboard RTL
+scenes match the native image exactly. See
+[architecture](architecture.md#post-release-main-startup-november-17-2026)
+for the image-specific evidence and limits. These changes do not alter the
+immutable version 1.0.0 release.

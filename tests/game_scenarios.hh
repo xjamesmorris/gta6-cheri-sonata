@@ -38,6 +38,14 @@ namespace driving::test
 			return game.phase == Phase::SourceQr;
 		}
 		game.advance(0, Right);
+		if (scene == 28)
+		{
+			const Bounds road = game.road_bounds(58);
+			game.frog = {static_cast<int16_t>(road.left + 20), 55,
+			             static_cast<int16_t>(road.right + 2), true, true,
+			             FrogHopMs - TickMs};
+			return true;
+		}
 		if (scene == 24)
 		{
 			game.obstacles[0] = {static_cast<int16_t>(game.carX),
@@ -93,6 +101,10 @@ namespace driving::test
 			  55,
 			  static_cast<SceneryKind>(scene - 19),
 			  true};
+			if (scene == 20)
+			{
+				game.scenery.billboardMessage = 1;
+			}
 			return true;
 		}
 		if (scene == 3)

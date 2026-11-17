@@ -23,7 +23,7 @@ option_end()
 
 option("game-scene")
     set_default("none")
-    set_values("none", "wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr")
+    set_values("none", "wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr", "frog")
 option_end()
 
 -- Emit a UF2 image ONLY for application slot 2 (base 0x10000000, family
@@ -79,7 +79,7 @@ compartment("wallpaper")
         if scene ~= "none" then
             assert(config.get("board") == "sonata-simulator",
                    "game-scene fixtures require --board=sonata-simulator")
-            local scenes = {"wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr"}
+            local scenes = {"wallpaper", "prompt", "driving", "wanted", "escaping", "recovery", "wasted", "restart", "money-bag", "hospital", "billing", "billing-in", "billing-out", "police", "jackpot", "gold", "fleet", "traffic", "crossing", "billboard", "police-station", "gas-station", "police-crash", "cheri-selftest", "wasted-fade", "wasted-monochrome", "source-qr", "frog"}
             for index, name in ipairs(scenes) do
                 if name == scene then
                     target:add("defines", "DRIVING_SIM_SCENE=" .. index)

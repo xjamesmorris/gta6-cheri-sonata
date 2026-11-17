@@ -122,6 +122,9 @@ namespace driving
 		randomState  = roadSeed;
 		sceneryState = mix(roadSeed ^ 0x7f4a7c15u);
 		nextScenery  = 800 + sceneryState % 801;
+		// Decorative crossings must not change traffic or scenery randomness.
+		frogState    = mix(roadSeed ^ 0x6a09e667u);
+		nextFrog     = 600 + (frogState >> 8) % 401;
 		hitsNeeded =
 		  static_cast<uint8_t>(2 + (mix(roadSeed ^ 0xa511e9b3u) & 1));
 		phase          = Phase::Playing;
@@ -440,6 +443,8 @@ namespace driving
 		}
 		sceneryState   = mix(sceneryState + 0x9e3779b9u);
 		scenery.kind   = static_cast<SceneryKind>(sceneryState % 4);
+		scenery.billboardMessage =
+		  static_cast<uint8_t>((sceneryState >> 16) % BillboardMessageCount);
 		scenery.y      = -SceneryHeight;
 		scenery.active = true;
 		int left       = Width;
@@ -453,6 +458,40 @@ namespace driving
 		scenery.x = static_cast<int16_t>(
 		  left >= Width - right ? left - SceneryWidth - 2 : right + 2);
 		nextScenery = distance + 1'000 + (sceneryState >> 8) % 1'001;
+	}
+
+	void Game::update_frog()
+	{
+		if (frog.active)
+		{
+			frog.y += 2;
+			frog.hopMs += TickMs;
+			if (frog.hopMs >= FrogHopMs)
+			{
+				frog.hopMs -= FrogHopMs;
+				frog.x += frog.rightward ? 4 : -4;
+			}
+			if (frog.y >= Height ||
+			    (frog.rightward ? frog.x >= frog.goalX : frog.x <= frog.goalX))
+			{
+				frog.active = false;
+			}
+		}
+		if (frog.active || static_cast<int32_t>(distance - nextFrog) < 0)
+		{
+			return;
+		}
+		frogState = mix(frogState + 0x9e3779b9u);
+		const Bounds road = road_bounds(SceneryHeight + FrogHeight / 2);
+		const int left = road.left - FrogWidth - 2;
+		const int right = road.right + 2;
+		frog.rightward = (frogState & 1) != 0;
+		frog.x = static_cast<int16_t>(frog.rightward ? left : right);
+		frog.goalX = static_cast<int16_t>(frog.rightward ? right : left);
+		frog.y = SceneryHeight;
+		frog.hopMs = 0;
+		frog.active = true;
+		nextFrog = distance + 1'000 + (frogState >> 8) % 1'001;
 	}
 
 	void Game::tick(uint8_t input)
@@ -642,6 +681,7 @@ namespace driving
 			spawn_obstacle();
 			nextSpawn = distance + SpawnSpacing;
 		}
+		update_frog();
 	}
 
 	uint32_t Game::brightness() const

@@ -1,10 +1,14 @@
-# GitHub Pages: v1.0.0 deployment
+# GitHub Pages deployment
 
 The owner approved initial public publication, Pages deployment and the
 v1.0.0 release on November 17, 2026. Both supplied CC BY 4.0 splash images are
 authorized. The original LCD artwork is the default; hidden Down switching
 during the splash, title navigation, the source QR and emulated CHERI LEDs
 are included.
+
+Later `main` updates use the same gates and need their own owner deployment
+approval. Updating Pages does not move an existing release tag or replace
+its firmware assets.
 
 Source: https://github.com/xjamesmorris/gta6-cheri-sonata
 
@@ -40,16 +44,17 @@ Relative asset URLs work under the repository Pages subpath.
 
 ## Owner publication and deployment procedure
 
-Initial publication and deployment are authorized, but must still satisfy
+Each publication or deployment must be specifically authorized and satisfy
 the repository and environment gates:
 
 1. Review the final source and documented verification boundaries. Run
    `./tools/check` and `./tools/check-browser` without an artwork override to
    check the original-artwork default, including hidden splash Down and the
    public project-subpath, mobile and unsigned-counter regressions.
-2. Audit the entire fresh history that would become public, including all
-   refs. A working-tree scan or push-only check is not sufficient. Passing a
-   publication check is not publication approval.
+2. Before a first public push or visibility change, audit the entire history
+   that would become public, including all refs. For updates, run the push
+   gate for the actual public remote/refs and scan generated site artifacts.
+   Passing a publication check is not publication approval.
 3. Configure Pages to use GitHub Actions and restrict the `github-pages`
    deployment environment to `main`. Preserve and satisfy any configured
    required-reviewer and self-review protections; do not remove or bypass

@@ -4,22 +4,26 @@ A small portrait driving game for the lowRISC Sonata v1.3 FPGA board, with a
 board-free WebAssembly preview. The repository name is `gta6-cheri-sonata`.
 The shared C++ game and RGB565 renderer target a **128×160** ST7735 LCD.
 
-**Version 1.0.0** is the owner-authorized public release edition, approved on
-November 17, 2026. Real CHERIoT protection, fault recovery, runtime artwork
-switching, a source-repository QR screen and emulated browser indicators are
-implemented. The recorded November 17 firmware image passed its physical-board
-startup fault tests and reached the title screen. This is image-specific
-startup proof, not exhaustive physical stress or interactive joystick
-acceptance; see [verification boundaries](docs/architecture.md).
+This README describes **current `main`**, including improvements after the
+immutable [v1.0.0 release](https://github.com/xjamesmorris/gta6-cheri-sonata/releases/tag/v1.0.0).
+The browser link runs the latest separately approved Pages deployment.
+Real CHERIoT protection, fault recovery, runtime artwork switching, a source
+QR and emulated browser indicators are implemented. Recorded release and
+post-release firmware images passed physical-board startup checks and reached
+the title screen. This is image-specific startup proof, not exhaustive
+physical stress or interactive joystick acceptance; see
+[verification boundaries](docs/architecture.md).
 A browser result is **not** evidence of hardware capability enforcement.
 
 [Source repository](https://github.com/xjamesmorris/gta6-cheri-sonata) ·
-[Browser game](https://xjamesmorris.github.io/gta6-cheri-sonata/)
+[Browser game](https://xjamesmorris.github.io/gta6-cheri-sonata/) ·
+[Roadmap / TODO](docs/roadmap.md)
 
 <a href="artwork/gta6-screenshot-01.png"><img src="artwork/gta6-screenshot-01.png" alt="Grand Time Auto web simulator during gameplay, with emulated board indicators" width="280"></a>
 
-Web simulator capture; indicators are emulated.
-[All screenshots](docs/screenshots.md) are available as compact, clickable thumbnails.
+Earlier web simulator capture; indicators are emulated.
+[Splash screens, screenshots and video](docs/screenshots.md) include compact,
+clickable image previews.
 
 ## Play
 
@@ -33,9 +37,10 @@ QR screen; any fresh direction/center press returns to the title, as does a
 click on the QR canvas in the browser.
 
 Use the joystick on the board, or arrow keys and Space/Enter in the browser.
-The browser's artwork button changes the selected title image without
-resetting progress, including during play. Artwork selection survives runs
-and soft resets; a power reset (or browser reload) restores the build's
+The browser's artwork button is enabled only during the splash fade, wallpaper
+hold and title prompt. It is disabled during play, WASTED, billing and the
+source QR screen, including synthetic click events. Artwork selection survives
+runs and soft resets; a power reset (or browser reload) restores the build's
 initial selection. Focus loss pauses the browser and clears held keys.
 
 - Steer through cars, trucks, buses and trailers; collect cash and gold.
@@ -44,6 +49,13 @@ initial selection. Focus loss pauses the browser and clears held keys.
   at five stars.
 - Damage, escape timers, decorative roadside scenes, user LEDs and two RGB
   status LEDs share the same game state in firmware and the preview.
+- Billboards vary between BUY / MORE, NO / REFUND, PAY / TOLL, STAY / COOL,
+  JUST / DRIVE and GOOD / LUCK.
+- An original green frog occasionally hops across the road in either direction.
+  One decorative, non-colliding frog is active at a time; it does not change
+  score, damage, wanted stars or wallet authority. The first crossing starts
+  after about 12-20 seconds, with later appearances 20-40 seconds apart.
+  Its separate seeded random stream does not change traffic generation.
 - WASTED holds the colored frame and red RGB LEDs for three seconds, then
   desaturates the entire screen over six seconds while both LEDs shift toward
   purple and dim to off using the same eased fade. The monochrome frame
@@ -150,6 +162,8 @@ operator-specific directory layout.
 ./tools/sim-test wasted-fade
 ./tools/sim-test wasted-monochrome
 ./tools/sim-test source-qr
+./tools/sim-test billboard
+./tools/sim-test frog
 ./tools/sim-test --all
 ```
 
@@ -161,6 +175,8 @@ network namespaces. The default `primary` artwork uses
 builds add `alternate/` before the scene name in both paths.
 The two WASTED fixtures freeze the shared color/LED fade at its midpoint and
 completed monochrome frame.
+The billboard fixture shows the NO / REFUND variant; `frog` freezes a crossing
+mid-hop. Both use the shared renderer and exact LCD/native comparison.
 `source-qr` additionally decodes the rendered QR to verify the source URL.
 
 `cheri-selftest` exercises actual tag, bounds and store-permission faults,

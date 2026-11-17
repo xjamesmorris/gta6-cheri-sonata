@@ -21,6 +21,10 @@ namespace driving
 	constexpr int      TrailerHeight  = 38;
 	constexpr int      SceneryWidth   = 26;
 	constexpr int      SceneryHeight  = 28;
+	constexpr size_t   BillboardMessageCount = 6;
+	constexpr int      FrogWidth      = 8;
+	constexpr int      FrogHeight     = 7;
+	constexpr uint32_t FrogHopMs      = 120;
 	constexpr int      CarY           = Height * 2 / 3 - CarHeight / 2;
 	constexpr int      MinCarY        = CarY - CarHeight * 2;
 	constexpr int      MaxCarY        = CarY + CarHeight * 2;
@@ -137,6 +141,17 @@ namespace driving
 		int16_t     y      = -SceneryHeight;
 		SceneryKind kind   = SceneryKind::ZebraCrossing;
 		bool        active = false;
+		uint8_t     billboardMessage = 0;
+	};
+
+	struct Frog
+	{
+		int16_t  x         = 0;
+		int16_t  y         = 0;
+		int16_t  goalX     = 0;
+		bool     active    = false;
+		bool     rightward = true;
+		uint32_t hopMs     = 0;
 	};
 
 	struct BillItem
@@ -189,6 +204,7 @@ namespace driving
 		uint32_t                            pickupFlashMs = 0;
 		uint32_t                            damageFlashMs = 0;
 		Scenery                             scenery{};
+		Frog                                frog{};
 		std::array<Police, PoliceCount>     police{};
 		std::array<Obstacle, ObstacleCount> obstacles{};
 		std::array<BillItem, BillItemCount> bill{};
@@ -219,10 +235,12 @@ namespace driving
 		uint32_t roadSeed       = 1;
 		uint32_t randomState    = 1;
 		uint32_t sceneryState   = 1;
+		uint32_t frogState      = 1;
 		uint32_t runs           = 0;
 		uint32_t remainderMs    = 0;
 		uint32_t nextSpawn      = 64;
 		uint32_t nextScenery    = 800;
+		uint32_t nextFrog       = 600;
 		size_t   nextObstacle   = 0;
 		bool     armed          = false;
 		bool     fadingOut      = false;
@@ -242,6 +260,7 @@ namespace driving
 		void    record_car_hit();
 		void    spawn_obstacle();
 		void    update_scenery();
+		void    update_frog();
 		int     road_center(uint32_t worldY) const;
 	};
 } // namespace driving
