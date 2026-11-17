@@ -14,7 +14,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-artwork=alternate
+artwork=primary
 if [[ $# == 2 && "${1:-}" == "--artwork" ]]; then
 	artwork=$2
 elif (($# != 0)); then

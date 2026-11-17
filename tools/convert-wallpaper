@@ -3,9 +3,9 @@
 """Convert the Grand Time Auto parody wallpaper into a Sonata RGB565 header.
 
 By default:
-  1. Reads the newer artwork/gta6-alternate-01.png.
-  2. Center-crops the design to fill the 128x160 panel.
-  3. Smoothly resizes the full-resolution source, keeping its colors and lettering.
+  1. Reads artwork/gta6-splash-orig-lcd.png.
+  2. Maps the design to the 128x160 panel without pre-rotation.
+  3. Preserves its native pixel grid with nearest-neighbor sampling.
   4. Emits little-endian RGB565 bytes without dithering.
 """
 
@@ -28,17 +28,18 @@ PANEL_W = 128
 PANEL_H = 160
 
 
-def fit_image(img: Image.Image, mode: str, size: tuple[int, int]) -> Image.Image:
+def fit_image(img: Image.Image, mode: str, size: tuple[int, int],
+              resample: Image.Resampling = Image.Resampling.LANCZOS) -> Image.Image:
     img = img.convert("RGB")
     src_w, src_h = img.size
     width, height = size
     if mode == "stretch":
-        return img.resize(size, Image.Resampling.LANCZOS)
+        return img.resize(size, resample)
     if mode == "letterbox":
         scale = min(width / src_w, height / src_h)
         new_w = max(1, round(src_w * scale))
         new_h = max(1, round(src_h * scale))
-        resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        resized = img.resize((new_w, new_h), resample)
         canvas = Image.new("RGB", size, (0, 0, 0))
         canvas.paste(resized, ((width - new_w) // 2, (height - new_h) // 2))
         return canvas
@@ -52,7 +53,7 @@ def fit_image(img: Image.Image, mode: str, size: tuple[int, int]) -> Image.Image
         crop_h = round(src_w / target_ratio)
         top = (src_h - crop_h) // 2
         cropped = img.crop((0, top, src_w, top + crop_h))
-    return cropped.resize(size, Image.Resampling.LANCZOS)
+    return cropped.resize(size, resample)
 
 
 def rotate_for_panel(img: Image.Image, rotate: str) -> Image.Image:
@@ -103,7 +104,8 @@ def make_wallpaper(img: Image.Image, fit: str, rotate: str, style: str) -> Image
         palette = small.quantize(colors=32, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
         image = palette.convert("RGB").resize(size, Image.Resampling.NEAREST)
     else:
-        image = fit_image(img, fit, size)
+        resample = Image.Resampling.NEAREST if style == "native" else Image.Resampling.LANCZOS
+        image = fit_image(img, fit, size, resample)
         if style == "photo":
             parody_title(image)
     return rotate_for_panel(image, rotate)
@@ -189,16 +191,16 @@ def render_header(data: bytes, width: int, height: int, source_name: str, fit: s
 def main() -> None:
     root = pathlib.Path(__file__).resolve().parent.parent
     artworks = {
-        "primary": root / "artwork" / "gta6-8bit-01.png",
-        "alternate": root / "artwork" / "gta6-alternate-01.png",
+        "primary": root / "artwork" / "gta6-splash-orig-lcd.png",
+        "alternate": root / "artwork" / "gta6-splash-derivative-lcd.png",
     }
     parser = argparse.ArgumentParser(description=__doc__)
     source = parser.add_mutually_exclusive_group()
     source.add_argument(
         "--artwork",
         choices=tuple(artworks),
-        default="alternate",
-        help="Project artwork to convert (default: alternate)",
+        default="primary",
+        help="Project artwork to convert (default: primary / orig)",
     )
     source.add_argument(
         "--input",
@@ -222,13 +224,15 @@ def main() -> None:
         default="0",
         help="Optional pre-rotation; default 0 uses the native 128x160 portrait view",
     )
-    parser.add_argument("--style", choices=("artwork", "retro", "pixel-art", "photo"), default="artwork",
-                        help="Smooth supplied artwork (default), optional retro pixelation, or legacy title-overlaid pixel-art/photo processing")
+    parser.add_argument("--style", choices=("native", "artwork", "retro", "pixel-art", "photo"),
+                        help="Default: native pixels for primary/orig, smooth artwork for alternate/custom inputs; retro and title-overlaid modes remain opt-in")
     parser.add_argument("--no-dither", action="store_true", help="Disable RGB565 dithering in photo mode")
     parser.add_argument("--preview-dir", type=pathlib.Path, default=None, help="Optional directory for PNG previews")
     parser.add_argument("--check", action="store_true", help="Verify --output matches generated header without writing")
     args = parser.parse_args()
 
+    if args.style is None:
+        args.style = "native" if args.input is None and args.artwork == "primary" else "artwork"
     if args.input is None:
         args.input = artworks[args.artwork]
     if args.output is None:

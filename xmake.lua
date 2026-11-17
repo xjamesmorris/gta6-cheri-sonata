@@ -17,7 +17,7 @@ option("board")
 option_end()
 
 option("artwork")
-    set_default("alternate")
+    set_default("primary")
     set_values("primary", "alternate")
 option_end()
 
@@ -71,7 +71,7 @@ compartment("wallpaper")
     add_files("firmware/game.cc", "firmware/game_renderer.cc", "firmware/protection_cheriot.cc", "firmware/protection_selftest.cc")
     on_load(function(target)
         import("core.project.config")
-        local artwork = config.get("artwork") or "alternate"
+        local artwork = config.get("artwork") or "primary"
         assert(artwork == "primary" or artwork == "alternate",
                "artwork must be primary or alternate")
         target:add("defines", "DRIVING_ARTWORK_" .. artwork:upper())

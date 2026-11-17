@@ -219,6 +219,11 @@ namespace driving
 		}
 		if (phase == Phase::FadeIn || phase == Phase::Wallpaper)
 		{
+			if (armed && input == Down)
+			{
+				change_artwork();
+			}
+			armed = input == 0;
 			// Consume only this screen's duration, avoiding timer overflow and
 			// never carrying a held start input into the prompt.
 			while (phase == Phase::FadeIn || phase == Phase::Wallpaper)
@@ -237,7 +242,6 @@ namespace driving
 				  phase == Phase::FadeIn ? Phase::Wallpaper : Phase::Prompt;
 				++revision;
 			}
-			armed = input == 0;
 			return;
 		}
 

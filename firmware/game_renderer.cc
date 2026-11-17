@@ -753,14 +753,11 @@ namespace driving
 			{
 				pixels[i] = wallpaper[i];
 			}
-			const char *prompts[] = {"RIGHT: PLAY STORY MODE", "DOWN: CHANGE ARTWORK"};
-			for (int line = 0; line < 2; ++line)
-			{
-				const int x = (Width - small_text_width(prompts[line])) / 2;
-				const int y = Height - 15 + line * 8;
-				small_text(prompts[line], x + 1, y + 1, Black);
-				small_text(prompts[line], x, y, White);
-			}
+			constexpr char Prompt[] = "RIGHT: PLAY STORY MODE";
+			const int x = (Width - small_text_width(Prompt)) / 2;
+			const int y = Height - 7;
+			small_text(Prompt, x + 1, y + 1, Black);
+			small_text(Prompt, x, y, White);
 		}
 		else if (game.phase == Phase::SourceQr)
 		{

@@ -10,7 +10,7 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 cd "$root"
 
-artwork=alternate
+artwork=primary
 scene_args=()
 while (($#)); do
 	case "$1" in

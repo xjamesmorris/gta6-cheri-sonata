@@ -1,21 +1,23 @@
 # Artwork attribution and license
 
-The **Grand Time Auto project** supplies and licenses both images below under
+The **Grand Time Auto project owner** supplies and licenses both splash images
+below under
 **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
 
-| Selection | Source image | Dimensions | Owner-supplied provenance |
+| Selection | Source image | Dimensions | Attribution |
 | --- | --- | --- | --- |
-| `primary` | `artwork/gta6-8bit-01.png` | 941×1672 | Supplied and licensed by the project owner |
-| `alternate` (newer, default) | `artwork/gta6-alternate-01.png` | 750×956 | Identified by the owner as independent and **generated using Claude** |
+| `primary` / original (default) | `artwork/gta6-splash-orig-lcd.png` | 512×640 RGB | Supplied and licensed by the project owner |
+| `alternate` / derivative | `artwork/gta6-splash-derivative-lcd.png` | 1024×1536 opaque RGBA | Supplied and licensed by the project owner |
 
-Only the alternate has the Claude-generation credit. These statements record
-owner-supplied provenance and licensing, **not an independent rights audit**.
+The owner confirmed this licensing for v1.0.0 on November 17, 2026. No
+additional creator or model provenance is asserted. This records the owner's
+licensing statement, **not an independent rights audit**.
 
 License: https://creativecommons.org/licenses/by/4.0/
 
 Full license: https://creativecommons.org/licenses/by/4.0/legalcode.en
 
-This notice covers both PNGs, their generated
+This notice covers the two named splash PNGs, their generated
 `firmware/wallpaper_image.h` / `firmware/wallpaper_image_alternate.h` splash
 data, and that data embedded in firmware, browser builds and rendered splash
 previews. It does not relicense program code, third-party dependencies or
@@ -23,37 +25,49 @@ custom images supplied to the converter.
 
 Suggested credit:
 
-> Grand Time Auto artwork, supplied by the Grand Time Auto project. CC BY 4.0.
-> Alternate image generated using Claude (owner-supplied provenance).
-> Metadata removed; display derivatives cropped and smoothly resized for RGB565.
+> Grand Time Auto splash artwork, supplied by the Grand Time Auto project owner.
+> CC BY 4.0. Original grid recovered with nearest-neighbor sampling; derivative
+> provenance metadata removed, center-cropped and Lanczos-resized; both encoded
+> for an RGB565 LCD.
 
 Retain appropriate credit, the license link and an indication of modifications
 when sharing the artwork or adaptations. No endorsement is implied.
 
-## Metadata-free public PNGs
+## Public PNG preservation
 
-Both public files retain their supplied dimensions and decoded RGB pixels.
-Ancillary PNG metadata, including provenance metadata and opaque identifiers,
-was removed for privacy; only image-bearing PNG chunks remain. Neither private
+Both public splash files retain their supplied dimensions and decoded RGB/RGBA
+pixels. The original PNG is byte-identical, including its sRGB color-space
+information. Only the derivative's nonvisual `caBX` provenance container was
+removed for privacy; its image-bearing chunks are unchanged. Neither supplied
 original was modified.
 
 Public PNG SHA-256 values:
 
 - Primary:
-  `b9be1fa357f6943a6e5cfceb01d9ae3848ee09c5fc68252d8e7a0644f40a12a4`
+  `59ea4157ce494572e210a20e8a82f4e9baf8fd7ae72ec820b0f4c69d57c24017`
 - Alternate:
-  `1d4569e1f2f7a0aa7547a19f91ded79bb592bce319e2eafb403809801fe51600`
+  `ec889f4d33951b156c3f61f931663553b574b2e55b3f02df4976c811add95f8a`
 
-Metadata removal does not replace the provenance disclosure above and does
-not constitute provenance authentication or a rights audit.
+The supplied derivative's SHA-256 before metadata removal was
+`c0598756b5d336994e45806819074bea43bf3529cf34c15f5523266ac6d2b67f`.
+Metadata removal does not authenticate provenance or constitute a rights audit.
 
 ## Display derivatives
 
-`tools/convert-wallpaper` center-crops the full-resolution source to the
-panel's 4:5 portrait ratio, smoothly resizes directly to 128×160 using Lanczos,
-and emits the LCD's required little-endian RGB565 format. It retains the
-supplied lettering and colors without an intermediate coarse grid, restricted
-palette, replacement lettering or dithering.
+`tools/convert-wallpaper` defaults to `primary` with the `native` style. The
+512×640 original is an exact 4× nearest-neighbor enlargement of a 128×160 image.
+Nearest-neighbor sampling recovers that grid exactly, with no crop or
+pre-rotation, before RGB565 quantization.
+
+The 1024×1536 derivative is not native 128×160 artwork. Its default `artwork`
+style center-crops to the panel's 4:5 ratio: 128 source rows are removed from
+both top and bottom, leaving 1024×1280. Lanczos then resizes it to 128×160.
+Custom inputs also default to the smooth `artwork` style.
+
+Both paths emit the LCD's required little-endian RGB565 format. They retain
+the supplied lettering without an extra coarse grid, restricted palette,
+replacement lettering or dithering. `native`, `artwork`, `retro`, `pixel-art`
+and `photo` can be selected explicitly; the latter modes are opt-in.
 These transformations apply to generated display data, not the public source
 PNG pixels.
 
@@ -68,3 +82,6 @@ Reproduce and verify both headers:
 
 The browser build copies this notice to `artwork-license.txt`; hardware
 firmware builds place it beside the image as `gta6_wallpaper.artwork-license.txt`.
+Only the designated project input paths receive the generated CC-BY-4.0
+header notice. A custom file, even one with the same basename elsewhere, is
+not automatically relicensed.

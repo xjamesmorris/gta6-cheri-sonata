@@ -457,6 +457,11 @@ for style in ("pixel-art", "retro"):
     assert len(set(raw[i:i+2] for i in range(0, len(raw), 2))) <= 32
     assert preview.size == (128, 160)
 
+native = portrait.resize((128, 160), Image.Resampling.NEAREST)
+enlarged = native.resize((512, 640), Image.Resampling.NEAREST)
+recovered = conv.make_wallpaper(enlarged, "crop", "0", "native")
+assert recovered.tobytes() == native.tobytes()
+
 corners = Image.new("RGB", (128, 160), (0, 0, 0))
 corners.paste((255, 0, 0), (0, 0, 64, 80))
 corners.paste((0, 255, 0), (64, 0, 128, 80))
@@ -499,8 +504,9 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
     assert "SPDX-License-Identifier: MIT" not in header
     primary = project / "firmware" / "wallpaper_image.h"
     original_primary = primary.read_bytes()
-    with Image.open(project / "artwork" / "gta6-8bit-01.png") as source:
-        primary_pixels = conv.make_wallpaper(source, "crop", "0", "artwork")
+    with Image.open(project / "artwork" / "gta6-splash-orig-lcd.png") as source:
+        primary_pixels = source.convert("RGB").resize((128, 160), Image.Resampling.NEAREST)
+        assert primary_pixels.resize(source.size, Image.Resampling.NEAREST).tobytes() == source.tobytes()
     primary_expected, _ = conv.quantize_rgb565(primary_pixels, dither=False)
     assert bytes(int(x, 16) for x in re.findall(r"0x([0-9a-f]{2})", header)) == primary_expected
     alternate = pathlib.Path(tmp) / "alternate.h"
@@ -508,8 +514,9 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
                     "--output", str(alternate)], check=True, capture_output=True, text=True)
     alternate_header = alternate.read_text()
     assert "SPDX-License-Identifier: CC-BY-4.0" in alternate_header
-    with Image.open(project / "artwork" / "gta6-alternate-01.png") as source:
-        alternate_pixels = conv.make_wallpaper(source, "crop", "0", "artwork")
+    with Image.open(project / "artwork" / "gta6-splash-derivative-lcd.png") as source:
+        alternate_pixels = source.convert("RGB").crop((0, 128, 1024, 1408)).resize(
+            (128, 160), Image.Resampling.LANCZOS)
     alternate_expected, _ = conv.quantize_rgb565(alternate_pixels, dither=False)
     assert len(set(alternate_expected[i:i+2] for i in range(0, len(alternate_expected), 2))) > 32
     assert any(alternate_expected[i:i+2] != alternate_expected[i+2:i+4]
@@ -518,7 +525,7 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
     assert alternate_header != header
     subprocess.run([sys.executable, sys.argv[1], "--output", str(output)],
                    check=True, capture_output=True, text=True)
-    assert output.read_text() == alternate_header
+    assert output.read_text() == header
     for selection in ("primary", "alternate"):
         subprocess.run([sys.executable, sys.argv[1], "--artwork", selection, "--check"],
                        check=True, capture_output=True, text=True)
@@ -534,7 +541,7 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
         [sys.executable, sys.argv[1], "--artwork", "alternate", "--input", str(custom),
          "--output", str(output)], capture_output=True, text=True)
     assert conflict.returncode == 2
-    for filename in ("gta6-8bit-01.png", "gta6-alternate-01.png"):
+    for filename in ("gta6-splash-orig-lcd.png", "gta6-splash-derivative-lcd.png"):
         same_name_custom = pathlib.Path(tmp) / filename
         crop_source.save(same_name_custom)
         subprocess.run([sys.executable, sys.argv[1], "--input", str(same_name_custom),

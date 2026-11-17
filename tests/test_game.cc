@@ -152,6 +152,35 @@ namespace
 		assert(std::memcmp(render(game).pixels, artwork::pixels(game.alternateArtwork), FrameBytes) == 0);
 	}
 
+	void splash_artwork_navigation()
+	{
+		for (uint32_t elapsed : {1'000u, FadeMs + 1'000})
+		{
+			Game game;
+			game.advance(elapsed, 0);
+			const bool initialArtwork = game.alternateArtwork;
+			const auto phase = game.phase;
+			const auto brightness = game.brightness();
+			game.advance(0, Down);
+			assert(game.alternateArtwork != initialArtwork);
+			assert(game.phase == phase && game.brightness() == brightness);
+			assert(std::memcmp(render(game).pixels,
+			                   artwork::pixels(!initialArtwork), FrameBytes) == 0);
+			game.advance(FadeMs + PromptDelayMs - elapsed, Down);
+			assert(game.phase == Phase::Prompt && game.alternateArtwork != initialArtwork);
+			game.advance(1'000, Down);
+			assert(game.alternateArtwork != initialArtwork);
+			game.advance(0, 0);
+			game.advance(0, Down);
+			assert(game.alternateArtwork == initialArtwork);
+			game.advance(0, 0);
+			game.advance(0, Right);
+			assert(game.phase == Phase::Playing);
+			game.advance(TickMs, Down);
+			assert(game.alternateArtwork == initialArtwork && game.carY > CarY);
+		}
+	}
+
 	void collisions_and_recovery()
 	{
 		uint8_t targets = 0;
@@ -1190,7 +1219,7 @@ namespace
 				if (std::memcmp(
 				      prompt.pixels + offset, artwork::pixels(game.alternateArtwork) + offset, 2))
 				{
-					assert(x >= 4 && x < Width - 3 && y >= Height - 15 &&
+					assert(x >= 4 && x < Width - 3 && y >= Height - 7 &&
 					       y <= Height - 2);
 					++changed;
 				}
@@ -1284,6 +1313,7 @@ int main()
 {
 	screen_flow();
 	title_navigation();
+	splash_artwork_navigation();
 	collisions_and_recovery();
 	escaping_and_money();
 	billing_sequence();

@@ -110,7 +110,7 @@ class BrowserTests(unittest.TestCase):
             "primary": "wallpaper_image.h",
             "alternate": "wallpaper_image_alternate.h",
         }
-        selection = os.environ.get("GTA6_TEST_ARTWORK", "alternate")
+        selection = os.environ.get("GTA6_TEST_ARTWORK", "primary")
         self.assertIn(selection, headers)
         header = (ROOT / "firmware" / headers[selection]).read_text()
         expected = bytes(int(value, 16) for value in re.findall(r"0x([0-9a-fA-F]{2})", header))
@@ -452,6 +452,34 @@ class BrowserTests(unittest.TestCase):
                 .getImageData(0, 0, 128, 160).data);
         }""")
         self.assertEqual(bytes(actual_rgba), bytes(expected_rgba))
+
+    def test_hidden_down_switches_during_splash(self):
+        self.open_preview()
+        self.advance(200, 5)
+        original = self.page.evaluate("drivingPreview.module._preview_artwork()")
+        labels = ("Original LCD artwork", "Derivative LCD artwork")
+        self.assertEqual(self.page.locator("#artwork-name").inner_text(), labels[original])
+        brightness = self.page.evaluate("drivingPreview.module._preview_scale()")
+        self.page.keyboard.down("ArrowDown")
+        self.assertEqual(self.state()[0], 0)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_scale()"), brightness)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), 1 - original)
+        self.assertEqual(self.page.locator("#artwork-name").inner_text(), labels[1 - original])
+        self.assertEqual(self.page.locator("#artwork-toggle").get_attribute("aria-pressed"),
+                         str(not original).lower())
+        self.advance(200, 25)
+        self.assertEqual(self.state()[0], 1)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), 1 - original)
+        self.page.keyboard.up("ArrowDown")
+        self.page.keyboard.down("ArrowDown")
+        self.assertEqual(self.state()[0], 1)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), original)
+        self.advance(200, 15)
+        self.assertEqual(self.state()[0], 2)
+        self.assertEqual(self.page.evaluate("drivingPreview.module._preview_artwork()"), original)
+        self.page.keyboard.up("ArrowDown")
+        self.page.keyboard.press("ArrowRight")
+        self.assertEqual(self.state()[0], 3)
 
     def test_title_artwork_button_and_hidden_source_qr(self):
         self.open_preview()

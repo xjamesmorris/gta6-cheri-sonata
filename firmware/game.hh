@@ -161,10 +161,10 @@ namespace driving
 	struct Game
 	{
 		Phase                               phase       = Phase::FadeIn;
-#ifdef DRIVING_ARTWORK_PRIMARY
-		bool                                alternateArtwork = false;
-#else
+#ifdef DRIVING_ARTWORK_ALTERNATE
 		bool                                alternateArtwork = true;
+#else
+		bool                                alternateArtwork = false;
 #endif
 		uint32_t                            phaseMs     = 0;
 		uint32_t                            activeMs    = 0;

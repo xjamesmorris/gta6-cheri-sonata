@@ -6,18 +6,28 @@
 receipts, transitions and LED state. `firmware/game_renderer.cc` renders
 portrait RGB565 rows. Firmware, native tests and WebAssembly use this same
 game and renderer. Splash data in `firmware/wallpaper.hh` is generated from
-the two authorized, licensed PNGs. Primary/alternate selection supplies the
-initial artwork; both images remain in read-only program memory. Runtime
+the two authorized CC BY 4.0 splash PNGs. `primary` / original is the default;
+nearest-neighbor sampling recovers its native 128×160 grid from the supplied
+512×640 enlargement. `alternate` uses a centered 1024×1280 crop of the
+1024×1536 derivative and Lanczos resizing. Primary/alternate selection supplies
+the initial artwork; both images remain in read-only program memory. Runtime
 selection changes a state flag and requires no extra framebuffer. It survives
 run resets; the browser's `preview_init` models a fresh power reset.
 In firmware, the images belong to compartment code and use read-only
 capabilities; ELF section flags alone are not the capability permission model.
 The existing writable renderer buffer is shared between screens.
 
-The title accepts fresh Right for story, Down for artwork and hidden Left for
-the source QR. The QR matrix is a reproducible 41-module, 246-byte packed
-constant generated locally. Fresh input or a browser QR-canvas click returns
-to the title without starting a run.
+Only Right for story is displayed in the LCD title prompt. Hidden Down changes
+artwork during FadeIn, Wallpaper and Prompt, using the existing fresh-input
+arm flag. A held press cannot retrigger across phases; switching preserves the
+phase and fade progress. Down remains a driving input during gameplay.
+The browser artwork button also works during gameplay in v1.0.0 without
+resetting progress.
+
+Hidden Left at the title opens the source QR. Its reproducible 41-module,
+246-byte packed constant is generated locally and encodes
+`https://github.com/xjamesmorris/gta6-cheri-sonata`. Fresh input or a browser
+QR-canvas click returns to the title without starting a run.
 
 WASTED shares a quadratic remaining-color level between RGB565 desaturation
 and red-to-purple LED dimming after a three-second hold. Level changes advance
@@ -97,23 +107,31 @@ simulator class announcements as a substitute for handler evidence.
 
 Native tests and the browser exercise **emulation**. The RTL simulator executes
 the capability firmware, but it does not verify physical joystick orientation,
-electrical behavior or real-board LCD timing. Interactive physical acceptance
-remains a prerequisite for release.
+electrical behavior or real-board LCD timing. The owner authorized v1.0.0 with
+these verification boundaries; release authorization does not claim exhaustive
+interactive physical acceptance.
 
-## Physical startup check: November 16, 2026
+## Physical startup check: November 17, 2026
 
-The 383488-byte slot-2 image with SHA-256
-`a1eae22da914d9a89e19ac05950543cba11a6c960d2ce8d94b293f6045c26f2d`
-was loaded through the guarded loader and reached the title screen.
+The 381952-byte slot-2 UF2 image with SHA-256
+`f3663309d5d06189e0e56485ef80e453a224165d80773ad3c9ed781c860e68a7`
+was loaded through the guarded loader, selected in slot 2 and reached the
+title screen. The default local public-tree build reproduced this UF2
+byte-for-byte.
 Its actual startup checks recovered seven expected faults: two tag, two
 bounds and three store-permission faults. Wallet balances zero, positive and
 negative, and the protected guard values, remained unchanged. Positive and
 wrong-cause controls passed; the retention probe returned no usable tagged
 capability without reporting a local-store exception.
 
-The console reported `PASS hardware`, the CHERIoT hardware backend and title
-readiness with no unexpected failure. The normal road check measured 11813
-cycles and 1408 stack bytes. This is image-specific startup evidence, not an
-exhaustive physical stress run or full interactive acceptance. Subsequent
-smooth-artwork/demo-removal builds are separate artifacts until explicitly
-loaded and checked.
+The console reported `captest PASS hardware`, the CHERIoT hardware backend,
+`Wallpaper ready` and title `Screen 2`. The fault totals were tag 2, bounds 2,
+store 3 and local-store 0. The normal road check measured 11911 cycles and
+1408 stack bytes. There was no unexpected failure or reset loop; the
+programmer was left unmounted with no unfinished-write latch. No serial
+commands were sent.
+
+This is image-specific startup evidence, not an exhaustive physical stress run
+or full interactive joystick acceptance. A rebuilt image must not inherit that
+physical verification solely because its sources or rendered pixels match;
+compare its exact UF2 digest with the recorded image.

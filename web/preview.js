@@ -84,7 +84,7 @@
       }
       context.putImageData(image, 0, 0);
       const alternate = module._preview_artwork() !== 0;
-      const artworkLabel = alternate ? "Alternate artwork" : "Primary artwork";
+      const artworkLabel = alternate ? "Derivative LCD artwork" : "Original LCD artwork";
       if (artworkName.textContent !== artworkLabel) artworkName.textContent = artworkLabel;
       artworkButton.setAttribute("aria-pressed", String(alternate));
       const mask = module._preview_led_mask();

@@ -11,7 +11,7 @@ cd "$root"
 build_only=false
 port=8000
 host=
-artwork=alternate
+artwork=primary
 while (($#)); do
 	case "$1" in
 		--build-only) build_only=true; shift ;;

@@ -4,25 +4,28 @@ A small portrait driving game for the lowRISC Sonata v1.3 FPGA board, with a
 board-free WebAssembly preview. The repository name is `gta6-cheri-sonata`.
 The shared C++ game and RGB565 renderer target a **128×160** ST7735 LCD.
 
-**Development status:** this is not a 1.0 release. Real CHERIoT protection,
-fault recovery and simulator checks are implemented. The recorded November 16,
-2026 firmware image passed its physical-board startup fault tests and reached
-the title screen; see [verification boundaries](docs/architecture.md).
-Interactive acceptance and later artwork revisions still require appropriate
-board checks. Version 1.0 and public deployment require a later owner decision.
+**Version 1.0.0** is the owner-authorized public release edition, approved on
+November 17, 2026. Real CHERIoT protection, fault recovery, runtime artwork
+switching, a source-repository QR screen and emulated browser indicators are
+implemented. The recorded November 17 firmware image passed its physical-board
+startup fault tests and reached the title screen. This is image-specific
+startup proof, not exhaustive physical stress or interactive joystick
+acceptance; see [verification boundaries](docs/architecture.md).
 A browser result is **not** evidence of hardware capability enforcement.
-Both supplied CC BY 4.0 images are authorized for this edition. Runtime artwork
-switching, title navigation, a source-repository QR screen and emulated CHERI
-indicator LEDs are implemented. Final release acceptance and deployment
-remain pending; this is a development edition.
+
+[Source repository](https://github.com/xjamesmorris/gta6-cheri-sonata) ·
+[Browser game](https://xjamesmorris.github.io/gta6-cheri-sonata/)
 
 ## Play
 
 The LCD starts black, fades in the artwork over six seconds, then displays a
-title menu after another three seconds. A fresh **Right** starts story mode;
-**Down** changes the artwork. The hidden **Left** shortcut opens a source
-repository QR screen; any fresh direction/center press returns to the title,
-as does a click on the QR canvas in the browser.
+title menu after another three seconds. Only **Right: Play story mode** appears
+in the LCD prompt. A fresh **Right** starts play. Hidden **Down** changes the
+artwork during the fade-in, wallpaper hold or title prompt, once per fresh
+press; holding it through a screen transition does not switch again or reset
+the fade. The hidden title-menu **Left** shortcut opens a source repository
+QR screen; any fresh direction/center press returns to the title, as does a
+click on the QR canvas in the browser.
 
 Use the joystick on the board, or arrow keys and Space/Enter in the browser.
 The browser's artwork button changes the selected title image without
@@ -78,9 +81,10 @@ or ambiguous Ethernet address fails rather than falling back to loopback or
 all interfaces. Allow the chosen port from your LAN in the host firewall.
 Only the built preview directory is served. `--build-only` never inspects
 network interfaces. Loopback is opt-in with `--host 127.0.0.1`.
-The newer Claude-generated `alternate` image is the default.
-`--artwork primary` selects the older image initially; both remain available
-through the compact **switch artwork** button and title-menu Down input.
+The `primary` / original LCD artwork is the default.
+`--artwork alternate` selects the derivative LCD artwork initially; both
+remain available through the compact **switch artwork** button and hidden
+splash Down input.
 
 ```sh
 ./tools/check-browser
@@ -141,9 +145,9 @@ operator-specific directory layout.
 Each scene builds without a UF2, runs the
 Sonata RTL simulator in a private network namespace, and compares all 20,480
 LCD pixels with the native renderer. Linux must permit unprivileged user and
-network namespaces. The newer default artwork uses
-`build/sim-firmware/alternate/<scene>` and `build/sim/alternate/<scene>`;
-explicit `primary` builds retain paths without `alternate/`.
+network namespaces. The default `primary` artwork uses
+`build/sim-firmware/<scene>` and `build/sim/<scene>`; explicit `alternate`
+builds add `alternate/` before the scene name in both paths.
 The two WASTED fixtures freeze the shared color/LED fade at its midpoint and
 completed monochrome frame.
 `source-qr` additionally decodes the rendered QR to verify the source URL.
@@ -174,19 +178,24 @@ imply endorsement.
 
 ## Artwork and licenses
 
-Code and tools are [MIT licensed](LICENSE). Both supplied images and their
-generated splash data are **CC BY 4.0**, supplied by the **Grand Time Auto
-project**. `primary` is `artwork/gta6-8bit-01.png` (941×1672); `alternate` is
-`artwork/gta6-alternate-01.png` (750×956). Only the alternate is described by
-the owner as independent and **generated using Claude**. These are
-owner-supplied provenance and licensing statements, not an independent rights
-audit.
+Code and tools are [MIT licensed](LICENSE). Both supplied splash images and
+their generated splash data are **CC BY 4.0**, supplied and licensed by the
+**Grand Time Auto project owner**:
 
-Both public PNGs have metadata removed and decoded pixels unchanged.
-The full-resolution splash is center-cropped and smoothly resized directly to
-128×160 with Lanczos, then encoded as the LCD's required RGB565. There is no
-extra pixelation, restricted palette, dithering or replacement lettering by
-default; the old coarse `--style retro` remains opt-in.
+- `primary` (default): `artwork/gta6-splash-orig-lcd.png`, 512×640 RGB.
+  This is an exact 4× nearest-neighbor enlargement of a 128×160 pixel grid.
+  The converter's default `native` style recovers that grid without smoothing.
+- `alternate`: `artwork/gta6-splash-derivative-lcd.png`, 1024×1536 opaque RGBA.
+  This is not a native-resolution LCD image. Its default `artwork` style
+  center-crops to 1024×1280 (128 source rows removed at both top and bottom)
+  and resizes to 128×160 with Lanczos.
+
+The original PNG is byte-identical to the supplied file. The derivative has
+only nonvisual provenance metadata removed; decoded pixels are unchanged.
+Both display paths then encode little-endian RGB565 with no dithering,
+replacement lettering or additional palette restriction. Optional `retro`,
+`pixel-art` and `photo` styles remain available. No creator or model provenance
+beyond the owner's supply and licensing statement is asserted.
 [Artwork attribution and transformation details](artwork/README.md)
 accompany browser and firmware build outputs.
 
@@ -214,7 +223,7 @@ the default checks intentionally verify both bundled images.
 
 ## Source QR and board indicators
 
-The hidden title QR encodes the planned public source repository:
+The hidden title QR encodes the public source repository:
 `https://github.com/xjamesmorris/gta6-cheri-sonata`. It is generated locally,
 not fetched from a QR service, and uses 246 packed bytes for 41 modules
 including the quiet zone.
@@ -248,5 +257,7 @@ locked browser edition. Deployment is disabled by default: it requires a
 manual dispatch from `main`, an approval variable, and the `github-pages`
 environment. Nothing enables Pages or creates releases automatically.
 
-See [Pages configuration and verified action pins](docs/pages.md). Initial
-publication, deployment and a future 1.0 release remain separate owner decisions.
+The owner approved initial publication, Pages deployment and the v1.0.0
+release on November 17, 2026. That approval does not bypass workflow gates or
+configured environment protections, and a local build is not a deployed site.
+See [Pages configuration and verified action pins](docs/pages.md).
