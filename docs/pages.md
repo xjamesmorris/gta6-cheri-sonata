@@ -19,6 +19,13 @@ checks with a read-only contents token. Checkout does not persist credentials.
 There is no `pull_request_target`, privileged fork execution, self-hosted
 runner, release job or automatic site enablement.
 
+The hosted Ubuntu 24.04 build job loads an AppArmor profile for the Nix-store
+Chromium executable so it can create its user-namespace sandbox. Chromium
+sandboxing stays enabled; neither global user-namespace restrictions nor
+AppArmor are disabled. This runner-only profile follows
+[Ubuntu's application-specific guidance](https://documentation.ubuntu.com/release-notes/24.04/#unprivileged-user-namespace-restrictions)
+and does not change the developer workstation.
+
 Only a manual dispatch from `main` with `deploy: true` and the repository
 variable `PAGES_PUBLICATION_APPROVED=true` uploads a site artifact and permits
 the deployment job. Build jobs cannot deploy; only the separate deployment job

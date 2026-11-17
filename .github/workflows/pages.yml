@@ -36,6 +36,16 @@ jobs:
           enable_kvm: false
           extra_nix_config: |
             experimental-features = nix-command flakes
+      - name: Allow the Nix Chromium user-namespace sandbox
+        run: |
+          cat > "$RUNNER_TEMP/sonata-nix-chromium.apparmor" <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile sonata-nix-chromium /nix/store/*-chromium-unwrapped-*/libexec/chromium/chromium flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          sudo -n apparmor_parser -r "$RUNNER_TEMP/sonata-nix-chromium.apparmor"
       - name: Check the locked browser build
         run: nix develop --accept-flake-config --no-write-lock-file .#preview -c ./tools/check-browser
       - name: Package only the static site
