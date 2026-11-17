@@ -455,6 +455,10 @@ class BrowserTests(unittest.TestCase):
 
     def test_title_artwork_button_and_hidden_source_qr(self):
         self.open_preview()
+        source_link = self.page.get_by_role("link", name="Source code", exact=True)
+        self.assertTrue(source_link.is_visible())
+        self.assertEqual(source_link.get_attribute("href"),
+                         "https://github.com/xjamesmorris/gta6-cheri-sonata")
         self.advance(200, 30)
         original = self.page.evaluate("drivingPreview.module._preview_artwork()")
         button = self.page.locator("#artwork-toggle")
