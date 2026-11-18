@@ -88,15 +88,40 @@ not money, cryptographic attestation or persistence.
 
 ## Exact audit contract
 
-`policy/gta6_wallpaper.rego` is enforced by `tools/check`. It requires the RTOS
-policy plus exact device owners and bounds/permissions, a single 4096-byte
-application stack with the configured trusted stack, and exact wallet/probe
-exports and callers. Both protected compartments must have no imports.
-External GPIO, pinmux and secondary UART access are forbidden.
+`policy/gta6_wallpaper.rego` is enforced by `tools/check`. It is
+deny-by-default. On top of the RTOS policy it requires:
+
+- exactly the fifteen listed compartments and libraries;
+- exactly the nine listed component-device MMIO grants anywhere in the image,
+  with memory outside the board devices held only by the allocator;
+- exact bounds and load/store-only permissions for the five application
+  grants: LCD SPI, backlight, debug UART, onboard GPIO and RGB LEDs;
+- in the application components `wallpaper`, `lcd_panel` and `debug`, only
+  device, library and compartment-call imports, with every library function
+  and compartment call listed by symbol;
+- no imports of any kind in `game_wallet` and `cap_probe`;
+- exact exports for `wallpaper`, `game_wallet`, `cap_probe` and `lcd_panel`,
+  and exactly the listed calls into them from anywhere in the image;
+- a single 4096-byte application stack with the configured trusted stack.
+
+Adding a compartment or a board-device grant anywhere in the image, or any
+import to an application component, therefore fails the audit until the
+policy itself is changed. `tools/check` then names the rejecting rules.
+External GPIO, pinmux and secondary UARTs also remain named as forbidden
+devices.
+
+The policy has limits. It does not pin the imports that RTOS components make
+among themselves or the bounds of the allocator's heap; those come from the
+pinned SDK, and the RTOS base policy checks only allocator quota objects and
+which components hold the revoker and interrupt controllers. It does not
+protect against bugs in trusted game code. Anyone able to change the sources
+can also change the policy, so policy changes need the same review as code.
 
 `tools/check-protection-elf` additionally verifies probe-only handler placement
-and minimum-stack metadata. Negative tests mutate grants, callers, exports,
-stack sizes and ELF metadata to ensure rejected configurations remain rejected.
+and minimum-stack metadata. Negative tests mutate components, grants, import
+kinds, callers, exports, stack sizes and ELF metadata to ensure rejected
+configurations remain rejected. They include an extra compartment and every
+board device granted to a component that is not listed for it.
 
 Every firmware boot runs real fault/recovery checks. The exhaustive simulator
 scene tests all road widths, 1100 consecutive recovered tag faults, retention

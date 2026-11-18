@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import contextlib
 import copy
 import hashlib
@@ -914,27 +915,162 @@ class AuditNegativeMutationTests(unittest.TestCase):
             mutated["threads"][0][key]["length"] += 8
             mutations.append((f"unexpected {key} size", mutated))
 
-        with tempfile.TemporaryDirectory(dir=ROOT / "build") as tmp:
-            for label, mutated in mutations:
-                mut_file = pathlib.Path(tmp) / "mutated.json"
-                mut_file.write_text(json.dumps(mutated), encoding="utf-8")
-                res = subprocess.run(
-                    [
-                        "cheriot-audit",
-                        "--board",
-                        str(board_path),
-                        "--module",
-                        str(policy_path),
-                        "--query",
-                        "data.gta6_wallpaper.valid",
-                        "--firmware-report",
-                        str(mut_file),
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
+        def audit(report, query="data.gta6_wallpaper.valid", board=board_path):
+            with tempfile.TemporaryDirectory(dir=ROOT / "build") as tmp:
+                report_file = pathlib.Path(tmp) / "report.json"
+                report_file.write_text(json.dumps(report), encoding="utf-8")
+                return subprocess.run(
+                    ["cheriot-audit", "--board", str(board), "--module", str(policy_path),
+                     "--query", query, "--firmware-report", str(report_file)],
+                    capture_output=True, text=True, check=True,
+                ).stdout.strip()
+
+        def rejecting_rules(report, board=board_path):
+            return json.loads(audit(report, "data.gta6_wallpaper.failed_rules", board))
+
+        def device_import(device):
+            return {"kind": "MMIO", "start": device["start"], "length": device["length"],
+                    "permits_load": True, "permits_store": True,
+                    "permits_load_store_capabilities": False, "permits_load_mutable": False}
+
+        def imports_of(report, name):
+            return report["compartments"][name].setdefault("imports", [])
+
+        # The contract is deny-by-default for the whole image, not only for
+        # the components and devices it names.
+        devices = json.loads(audit(base_report, "data.board.devices"))
+        self.assertLessEqual({"adc", "i2c0", "i2c1", "spi0", "usbdev"}, set(devices))
+        for name, device in sorted(devices.items()):
+            mutated = copy.deepcopy(base_report)
+            imports_of(mutated, "freestanding").append(device_import(device))
+            mutations.append((f"freestanding obtains {name}", mutated))
+        mutated = copy.deepcopy(base_report)
+        imports_of(mutated, "scheduler").append(
+            {**device_import(devices["i2c0"]), "start": 0x00110000, "length": 16})
+        mutations.append(("scheduler obtains memory outside every device", mutated))
+
+        mutated = copy.deepcopy(base_report)
+        spare = copy.deepcopy(base_report["compartments"]["cap_probe"])
+        for entry in spare["exports"]:
+            entry["export_symbol"] = entry["export_symbol"].replace("cap_probe", "spare_probe")
+        mutated["compartments"]["spare_probe"] = spare
+        mutations.append(("extra compartment without authority", mutated))
+        mutated = copy.deepcopy(base_report)
+        audio = copy.deepcopy(base_report["compartments"]["cap_probe"])
+        audio["exports"] = audio["exports"][:1]
+        audio["exports"][0]["export_symbol"] = "__export_audio__Z10audio_playv"
+        audio["imports"] = [device_import(devices["i2c0"])]
+        mutated["compartments"]["audio"] = audio
+        imports_of(mutated, "wallpaper").append({
+            "kind": "CompartmentExport", "compartment_name": "audio",
+            "export_symbol": "__export_audio__Z10audio_playv", "function": "audio_play()",
+        })
+        mutations.append(("extra compartment with a device, called by wallpaper", mutated))
+
+        def find_import(component, **match):
+            return next(
+                imp for imp in base_report["compartments"][component]["imports"]
+                if all(imp.get(key) == value for key, value in match.items())
+            )
+
+        lcd_call = find_import(
+            "wallpaper", kind="LibraryFunction",
+            export_symbol="__library_export_libcalls__ZN13wallpaper_lcd5Panel18draw_rgb565_scaledEPKhjjj")
+        for caller, component, match in (
+            ("scheduler", "wallpaper", {"export_symbol": lcd_call["export_symbol"]}),
+            ("wallpaper", "scheduler", {"kind": "CompartmentExport", "compartment_name": "allocator"}),
+            ("wallpaper", "allocator",
+             {"export_symbol": "__export.sealing_type.allocator.MallocKey"}),
+            ("wallpaper", "compartment_helpers", {"kind": "SharedObject"}),
+        ):
+            borrowed = find_import(component, **match)
+            mutated = copy.deepcopy(base_report)
+            imports_of(mutated, caller).append(copy.deepcopy(borrowed))
+            label = borrowed.get("export_symbol", borrowed.get("shared_object"))
+            mutations.append((f"{caller} imports {label}", mutated))
+        mutated = copy.deepcopy(base_report)
+        imports_of(mutated, "lcd_panel").append({
+            "kind": "CompartmentExport", "compartment_name": "wallpaper",
+            "export_symbol": "__export_wallpaper__Z13wallpaper_runv", "function": "wallpaper_run()",
+        })
+        mutations.append(("lcd_panel calls the wallpaper entry point", mutated))
+
+        # A library runs with its own imports, so library calls are pinned too.
+        memcmp = find_import("wallpaper", export_symbol="__library_export_libcalls__Z6memcmpPKvS0_j")
+        for target in ("game_wallet", "cap_probe"):
+            mutated = copy.deepcopy(base_report)
+            imports_of(mutated, target).append(copy.deepcopy(memcmp))
+            mutations.append((f"{target} imports a library function", mutated))
+        for caller, library in (("wallpaper", "token_library"), ("lcd_panel", "locks"),
+                                ("debug", "compartment_helpers")):
+            provider = base_report["compartments"][library]
+            mutated = copy.deepcopy(base_report)
+            imports_of(mutated, caller).append({
+                "kind": "LibraryFunction",
+                "export_symbol": provider["exports"][0]["export_symbol"],
+                "provided_by": provider["code"]["inputs"][0]["file"],
+            })
+            mutations.append((f"{caller} imports a {library} function", mutated))
+
+        for target in ("wallpaper", "lcd_panel"):
+            mutated = copy.deepcopy(base_report)
+            extra = copy.deepcopy(mutated["compartments"][target]["exports"][0])
+            extra["export_symbol"] += "_extra"
+            mutated["compartments"][target]["exports"].append(extra)
+            mutations.append((f"{target} exports extra entry", mutated))
+            mutated = copy.deepcopy(base_report)
+            mutated["compartments"][target]["exports"][0]["interrupt_status"] = "disabled"
+            mutations.append((f"{target} disables entry interrupts", mutated))
+
+        for owner, name in (("debug", "uart"), ("lcd_panel", "spi_lcd"), ("lcd_panel", "pwm_lcd")):
+            for label, change in (
+                ("narrowed", {"length": devices[name]["length"] - 4}),
+                ("capability-bearing", {"permits_load_store_capabilities": True}),
+            ):
+                mutated = copy.deepcopy(base_report)
+                imp = next(
+                    item for item in mutated["compartments"][owner]["imports"]
+                    if item.get("kind") == "MMIO" and item.get("start") == devices[name]["start"]
                 )
-                self.assertEqual(res.stdout.strip(), "false", f"mutation '{label}' was not rejected")
+                imp.update(change)
+                mutations.append((f"{label} {name} grant", mutated))
+
+        # Each rule must also reject on its own, so that none is dead weight.
+        sole_rule = {
+            "extra compartment without authority": "image_components_exact",
+            "freestanding obtains i2c0": "image_mmio_exact",
+            "narrowed uart grant": "app_mmio_permissions_exact",
+            "wallpaper imports allocator_epoch": "app_import_kinds_exact",
+            "game_wallet imports a library function": "isolated_components_have_no_imports",
+            "cap_probe imports a library function": "isolated_components_have_no_imports",
+            "wallpaper imports a token_library function": "app_library_calls_exact",
+            "lcd_panel imports a locks function": "app_library_calls_exact",
+            "debug imports a compartment_helpers function": "app_library_calls_exact",
+            "lcd_panel calls the wallpaper entry point": "app_calls_exact",
+            "wallpaper exports extra entry": "app_exports_exact",
+            "extra thread": "single_wallpaper_thread",
+        }
+        singled_out = [(label, mutated) for label, mutated in mutations if label in sole_rule]
+        self.assertEqual(len(singled_out), len(sole_rule))
+
+        self.assertEqual(audit(base_report), "true")
+        self.assertEqual(rejecting_rules(base_report), [])
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            verdicts = pool.map(audit, (mutated for _, mutated in mutations))
+            for (label, _), verdict in zip(mutations, verdicts):
+                self.assertEqual(verdict, "false", f"mutation '{label}' was not rejected")
+            reasons = pool.map(rejecting_rules, (mutated for _, mutated in singled_out))
+            for (label, _), reason in zip(singled_out, reasons):
+                self.assertEqual(reason, [sole_rule[label]], label)
+
+        # The named denial must not become vacuous if a board device is renamed.
+        with tempfile.TemporaryDirectory(dir=ROOT / "build") as tmp:
+            renamed = pathlib.Path(tmp) / "board.json"
+            renamed.write_text(
+                board_path.read_text(encoding="utf-8").replace('"gpio_pmod0"', '"gpio_renamed"'),
+                encoding="utf-8",
+            )
+            self.assertEqual(rejecting_rules(base_report, renamed), ["forbidden_devices_unreachable"])
 
 
 if __name__ == "__main__":

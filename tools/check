@@ -74,13 +74,17 @@ echo "OK: built $release/gta6_wallpaper with zero warnings from repository files
 python3 -B tools/check-protection-elf "$release/gta6_wallpaper.json"
 
 echo "==== 3. CHERIoT compartment & MMIO audit"
-audit_result=$(cheriot-audit \
-	--board "$SONATA_SOFTWARE/cheriot-rtos/sdk/boards/sonata-1.1.json" \
-	--module policy/gta6_wallpaper.rego \
-	--query data.gta6_wallpaper.valid \
-	--firmware-report "$release/gta6_wallpaper.json")
+audit() {
+	cheriot-audit \
+		--board "$SONATA_SOFTWARE/cheriot-rtos/sdk/boards/sonata-1.1.json" \
+		--module policy/gta6_wallpaper.rego \
+		--query "$1" \
+		--firmware-report "$release/gta6_wallpaper.json"
+}
+audit_result=$(audit data.gta6_wallpaper.valid)
 if [[ "$audit_result" != "true" ]]; then
 	echo "FAIL: cheriot-audit returned '$audit_result' (expected 'true')" >&2
+	echo "Rejecting rules: $(audit data.gta6_wallpaper.failed_rules || true)" >&2
 	exit 1
 fi
 echo "OK: cheriot-audit data.gta6_wallpaper.valid == true"

@@ -161,10 +161,13 @@ connect to Sonata.
 - Header I/O is 3.3 V: the Arduino header supports only 3.3 V shields, and the
   v1.3 constraints use 3.3 V LVCMOS for the digital header pins [1][14]. Check
   every module output (TX, DOUT, MISO) before connecting it.
-- The firmware audit grants only the LCD/backlight, debug UART and onboard
-  GPIO/RGB LEDs, and forbids external GPIO, pinmux and secondary UARTs.
+- The firmware audit is deny-by-default. It grants application code only the
+  LCD/backlight, debug UART and onboard GPIO/RGB LEDs, and rejects any other
+  compartment or board-device grant anywhere in the image, including I2C,
+  general-purpose PWM, USB, external GPIO, pinmux and secondary UARTs.
   External audio needs a separately reviewed compartment with only the chosen
-  device authority, not a blanket relaxation of the audit policy.
+  device authority, an explicit policy change and new negative tests, not a
+  blanket relaxation of the audit policy.
 - Respect existing peripheral connections and disconnect Pmod0 from external
   hardware before programming. Choose an unused connector, bus, address and
   power budget before connecting anything.
