@@ -146,6 +146,12 @@ component ELF checks, the CHERIoT audit, slot-2 UF2 validation, negative policy
 mutation tests, loader tests with synthetic devices, and native game tests.
 It does not access hardware.
 
+The [firmware workflow](.github/workflows/firmware.yml) runs the same
+`./tools/check` and the `cheri-selftest` RTL fixture for pushes to `main` and
+for pull requests. It uploads the check log, audit report, image digests and
+simulator transcript as workflow artifacts, kept for 30 days. It has a
+read-only token, cannot deploy or release, and never touches hardware.
+
 The firmware target remains `gta6_wallpaper`; output is under
 `build/cheriot/cheriot/release`. Only application **slot 2**
 (`0x10000000`, UF2 family `0x6CE29E60`) is emitted. Other application slots

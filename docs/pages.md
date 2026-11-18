@@ -87,6 +87,14 @@ commit IDs, not floating version tags:
 
 The pinned artifact action also pins its nested `actions/upload-artifact`
 dependency to `bbbca2ddaa5d8feaa63e36b76fdaad77386f024f` (`v7.0.0`).
+The [firmware workflow](../.github/workflows/firmware.yml) uses that same
+revision directly to upload its evidence, together with the checkout and Nix
+installer revisions above. Its tag and commit were rechecked on
+**November 18, 2026** (UTC). That workflow only builds, audits and simulates: both
+jobs have a read-only contents token and no Pages, release or deployment
+permission. Its simulator job loads a second runner-only AppArmor profile, for
+`/usr/bin/unshare`, so the simulator can have its private user and network
+namespaces under the same Ubuntu restriction.
 Recheck upstream release notes, inputs and immutable revisions when updating.
 
 Primary sources:
@@ -99,3 +107,4 @@ Primary sources:
 - [Configure Pages release](https://github.com/actions/configure-pages/releases/tag/v6.0.0)
 - [Deploy Pages release](https://github.com/actions/deploy-pages/releases/tag/v5.0.1)
 - [Pinned artifact action definition](https://github.com/actions/upload-pages-artifact/blob/fc324d3547104276b827a68afc52ff2a11cc49c9/action.yml)
+- [Upload artifact release](https://github.com/actions/upload-artifact/releases/tag/v7.0.0)

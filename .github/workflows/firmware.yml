@@ -1,0 +1,115 @@
+name: Firmware checks and capability self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: Build, audit and host checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          enable_kvm: false
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Build the firmware, audit it and run the host checks
+        run: |
+          mkdir -p build/ci-evidence
+          nix develop --accept-flake-config --no-write-lock-file . -c ./tools/check 2>&1 |
+            tee build/ci-evidence/check.log
+      - name: Record the image digests and audit report
+        run: |
+          release=build/cheriot/cheriot/release
+          (cd "$release" && sha256sum gta6_wallpaper.slot2.uf2 gta6_wallpaper.strip gta6_wallpaper.json) |
+            tee build/ci-evidence/SHA256SUMS
+          cp "$release/gta6_wallpaper.json" build/ci-evidence/firmware-report.json
+          cp "$release/gta6_wallpaper.third-party-notices.txt" build/ci-evidence/third-party-notices.txt
+          {
+            echo '### Firmware image digests'
+            echo '```text'
+            cat build/ci-evidence/SHA256SUMS
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Upload the build and audit evidence
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: firmware-evidence
+          path: build/ci-evidence
+          if-no-files-found: error
+          retention-days: 30
+
+  selftest:
+    name: RTL capability self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Nix
+        uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31.11.5
+        with:
+          enable_kvm: false
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: Allow the simulator's private user and network namespaces
+        run: |
+          cat > "$RUNNER_TEMP/sonata-sim-unshare.apparmor" <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile sonata-sim-unshare /usr/bin/unshare flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          sudo -n apparmor_parser -r "$RUNNER_TEMP/sonata-sim-unshare.apparmor"
+      - name: Run the exhaustive capability self-test in the RTL simulator
+        run: |
+          mkdir -p build/ci-evidence
+          ./tools/sim-test cheri-selftest 2>&1 | tee build/ci-evidence/sim-test.log
+      - name: Collect the simulator transcript
+        if: always()
+        run: |
+          mkdir -p build/ci-evidence
+          for file in build/sim/cheri-selftest/uart0.log \
+            build/sim/cheri-selftest/simulator.out \
+            build/sim/cheri-selftest/lcd-panel-128x160.png \
+            build/sim-firmware/cheri-selftest/expected-protection.json; do
+            if [[ -f "$file" ]]; then
+              cp "$file" build/ci-evidence/
+            fi
+          done
+      - name: Upload the self-test evidence
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: rtl-selftest-evidence
+          path: build/ci-evidence
+          if-no-files-found: error
+          retention-days: 30
