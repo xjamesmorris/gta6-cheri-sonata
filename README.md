@@ -265,9 +265,11 @@ without adding a framebuffer. Custom conversion remains available:
 ./tools/convert-wallpaper --input path/to/your-image.png --output build/custom-image.h
 ```
 
-Custom inputs are not automatically licensed by this project. Replacing a
-bundled source or generated header requires updating attribution and tests;
-the default checks intentionally verify both bundled images.
+Custom inputs are not automatically licensed by this project. `--input`
+requires an explicit `--output`, so a custom image never silently replaces a
+bundled header, and its file name is escaped in the generated comment.
+Replacing a bundled source or generated header requires updating attribution
+and tests; the default checks intentionally verify both bundled images.
 
 ## Source QR and board indicators
 

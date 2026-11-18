@@ -562,6 +562,41 @@ with tempfile.TemporaryDirectory(dir=project / "build") as tmp:
                     self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                     self.assertIn("artwork", result.stderr)
 
+    def test_custom_input_name_cannot_leave_comment_or_replace_bundled_header(self) -> None:
+        tool = str(ROOT / "tools" / "convert-wallpaper")
+        artwork = ROOT / "artwork" / "gta6-splash-orig-lcd.png"
+        bundled = ROOT / "firmware" / "wallpaper_image.h"
+        original = bundled.read_bytes()
+        self.addCleanup(bundled.write_bytes, original)
+        (ROOT / "build").mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT / "build") as tmp:
+            headers = []
+            for name in ("x\n#error injected\r\\\x1b[2J\u2028.png", "plain.png"):
+                image = pathlib.Path(tmp) / name
+                shutil.copyfile(artwork, image)
+                output = pathlib.Path(tmp) / "custom.h"
+                result = subprocess.run(
+                    [sys.executable, "-B", tool, "--input", str(image), "--output", str(output)],
+                    capture_output=True, text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                headers.append(output.read_text(encoding="utf-8").split("\n"))
+            hostile, plain = headers
+            self.assertEqual(
+                hostile[1],
+                "// Source: x\\n#error injected\\r\\\\\\x1b[2J\\u2028.png "
+                "(fit=crop, rotate=0, style=artwork, dither=False)",
+            )
+            self.assertEqual(hostile[:1] + hostile[2:], plain[:1] + plain[2:])
+            for mode in ((), ("--check",)):
+                result = subprocess.run(
+                    [sys.executable, "-B", tool, "--input", str(image), *mode],
+                    capture_output=True, text=True,
+                )
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("--input requires an explicit --output", result.stderr)
+        self.assertEqual(bundled.read_bytes(), original)
+
 
 class ArtworkBuildTests(unittest.TestCase):
     def test_both_runtime_artworks_are_linked_once(self) -> None:
