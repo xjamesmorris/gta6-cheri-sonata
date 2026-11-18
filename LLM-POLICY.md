@@ -31,8 +31,10 @@ tool disclosure does not identify that reviewer or constitute independent
 human review.
 
 Artwork attribution and licensing are recorded separately in
-[artwork/README.md](artwork/README.md). Code is [MIT licensed](LICENSE);
-the two supplied splash images and generated splash data are CC BY 4.0.
+[artwork/README.md](artwork/README.md). Project code is [MIT licensed](LICENSE),
+except the files adapted from lowRISC's Apache-2.0 Sonata software, which keep
+that license; [third-party notices](THIRD-PARTY-NOTICES.md) list every parent
+work. The two supplied splash images and generated splash data are CC BY 4.0.
 AI assistance does not waive attribution, copyright or license obligations.
 
 ## Contribution disclosure

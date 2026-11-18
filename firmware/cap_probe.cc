@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: MIT
+//
+// Deliberately under-privileged probe compartment. Treating capability faults
+// as gameplay events follows lowRISC's CHERI Snake demo (sonata-software
+// examples/snake/snake.cc). This implementation is independent of that code
+// and uses the CHERIoT RTOS compartment error-handler interface.
 #include "protection_api.hh"
 
 namespace

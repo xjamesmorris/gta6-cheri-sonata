@@ -36,10 +36,12 @@ the deployment job. Build jobs cannot deploy; only the separate deployment job
 receives `pages: write` and `id-token: write`. That job executes no checked-out
 project code and uses the `github-pages` environment.
 
-The artifact contains exactly six files: `index.html`, `preview.js`, `game.js`,
-`game.wasm`, `artwork-license.txt` and `code-license.txt`. Test screenshots,
-compiler outputs, caches and source PNG metadata are not included. The page
-retains its explicit **EMULATED** protection banner and MIT code-license link.
+The artifact contains exactly seven files: `index.html`, `preview.js`,
+`game.js`, `game.wasm`, `artwork-license.txt`, `code-license.txt` and
+`third-party-notices.txt`. Test screenshots, compiler outputs, caches and
+source PNG metadata are not included. The page retains its explicit
+**EMULATED** protection banner and its code-license and third-party-notice
+links. `game.js` begins with Emscripten's license comment.
 Relative asset URLs work under the repository Pages subpath.
 
 ## Owner publication and deployment procedure

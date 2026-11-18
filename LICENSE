@@ -20,6 +20,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+This MIT license covers the project's own work, with two exceptions.
+
+firmware/lcd_panel.cc, firmware/lcd_panel.hh and xmake.lua are adapted from
+lowRISC's Sonata software and remain under the Apache License, Version 2.0,
+as their headers state. See THIRD-PARTY-NOTICES.md and
+LICENSES/Apache-2.0.txt.
+
 The bundled artwork and generated splash data are licensed separately under
 CC BY 4.0, not this MIT license. See artwork/README.md for their attribution,
 provenance and license.
+
+Third-party software that is compiled into firmware or browser builds, but is
+not part of this repository, keeps its own licenses. THIRD-PARTY-NOTICES.md
+lists it.

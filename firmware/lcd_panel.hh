@@ -1,4 +1,16 @@
-// SPDX-License-Identifier: MIT
+// Copyright lowRISC Contributors.
+// Copyright (c) 2026 Grand Time Auto contributors.
+// SPDX-License-Identifier: Apache-2.0
+//
+// Adapted from libraries/lcd.hh in lowRISC sonata-software v1.3, revision
+// 722cdea0207920997b0895ea1f430619b343e10c:
+// https://github.com/lowRISC/sonata-software/blob/722cdea0207920997b0895ea1f430619b343e10c/libraries/lcd.hh
+//
+// Changes made by the Grand Time Auto project in 2026: SonataLcd is reduced
+// to a Panel with a fixed portrait orientation, no destructor and two RGB565
+// streaming entry points. The Point, Rect, Color and Font types and the
+// bitmap font includes are removed. See lcd_panel.cc and
+// THIRD-PARTY-NOTICES.md.
 #pragma once
 
 #include <cheri.hh>

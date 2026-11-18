@@ -784,7 +784,8 @@ class BrowserTests(unittest.TestCase):
         site = pathlib.Path(staging.name) / "gta6-cheri-sonata"
         site.mkdir()
         for name in ("index.html", "preview.js", "game.js", "game.wasm",
-                     "artwork-license.txt", "code-license.txt"):
+                     "artwork-license.txt", "code-license.txt",
+                     "third-party-notices.txt"):
             shutil.copyfile(OUTPUT / name, site / name)
         server = http.server.ThreadingHTTPServer(
             ("127.0.0.1", 0), functools.partial(QuietHandler, directory=staging.name)
@@ -797,11 +798,20 @@ class BrowserTests(unittest.TestCase):
         self.url = f"http://127.0.0.1:{server.server_port}/gta6-cheri-sonata"
 
         self.open_preview()
-        for name, credit in (("code-license.txt", "MIT License"),
-                             ("artwork-license.txt", "CC BY 4.0")):
+        for name, credits in (
+            ("code-license.txt", ("MIT License", "Apache License, Version 2.0")),
+            ("artwork-license.txt", ("CC BY 4.0",)),
+            ("third-party-notices.txt",
+             ("Copyright lowRISC Contributors.", "Copyright (c) Microsoft Corporation.",
+              "Emscripten authors", "University of Illinois/NCSA")),
+        ):
+            self.assertEqual(self.page.locator(f'a[href="{name}"]').count(), 1)
             response = self.page.request.get(self.url + "/" + name)
             self.assertEqual(response.status, 200)
-            self.assertIn(credit, response.text())
+            for credit in credits:
+                self.assertIn(credit, response.text())
+        runtime = self.page.request.get(self.url + "/game.js").text()
+        self.assertIn("Copyright 2010 The Emscripten Authors", runtime[:200])
         self.advance(200, 45)
         original = self.page.evaluate("drivingPreview.module._preview_artwork()")
         self.page.keyboard.press("ArrowDown")

@@ -56,11 +56,17 @@ em++ -std=c++20 -O2 -Wall -Wextra -Werror -fno-exceptions -fno-rtti \
 	firmware/game.cc firmware/game_renderer.cc firmware/protection_emulated.cc web/preview.cc \
 	--no-entry -sMODULARIZE -sEXPORT_NAME=createDrivingGame \
 	-sENVIRONMENT=web -sFILESYSTEM=0 -sINITIAL_MEMORY=8388608 -sSTACK_SIZE=65536 -sWASM_BIGINT \
+	-sEMIT_EMSCRIPTEN_LICENSE \
 	-sEXPORTED_FUNCTIONS='["_preview_init","_preview_artwork","_preview_toggle_artwork","_preview_width","_preview_height","_preview_advance","_preview_render","_preview_scale","_preview_phase","_preview_stars","_preview_money","_preview_bill_total","_preview_led_mask","_preview_rgb1","_preview_rgb2","_preview_damage","_preview_x","_preview_y","_preview_pending_hits","_preview_distance","_preview_protection_origin","_preview_protection_failed","_preview_tag_denials","_preview_wallet_denials","_preview_road_denials","_preview_last_protection_event"]' \
 	-o build/game-preview/game.js
 cp web/index.html web/preview.js build/game-preview/
 cp artwork/README.md build/game-preview/artwork-license.txt
 cp LICENSE build/game-preview/code-license.txt
+{
+	cat THIRD-PARTY-NOTICES.md
+	printf '\n\n===== Emscripten LICENSE =====\n\n'
+	cat "$(em-config EMSCRIPTEN_ROOT)/LICENSE"
+} >build/game-preview/third-party-notices.txt
 if [[ "$build_only" == true ]]; then
 	echo "Built $artwork artwork browser preview in build/game-preview"
 	exit 0

@@ -55,6 +55,7 @@ jobs:
           cp build/game-preview/index.html build/game-preview/preview.js \
             build/game-preview/game.js build/game-preview/game.wasm \
             build/game-preview/artwork-license.txt build/game-preview/code-license.txt \
+            build/game-preview/third-party-notices.txt \
             build/pages-site/
       - name: Upload the approved Pages artifact
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy && vars.PAGES_PUBLICATION_APPROVED == 'true'

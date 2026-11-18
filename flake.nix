@@ -7,6 +7,9 @@
     nixpkgs.follows = "sonata-software/nixpkgs";
   };
 
+  # The lowRISC binary cache URL and public key are the values published in
+  # the pinned sonata-software flake.nix (Apache-2.0, lowRISC Contributors).
+  # They let Nix fetch the CHERIoT toolchain instead of rebuilding it.
   nixConfig = {
     extra-substituters = ["https://nix-cache.lowrisc.org/public/"];
     extra-trusted-public-keys = [

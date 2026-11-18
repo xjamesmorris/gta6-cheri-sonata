@@ -580,6 +580,67 @@ class ArtworkBuildTests(unittest.TestCase):
             pixels = bytes(int(value, 16) for value in re.findall(r"0x([0-9a-fA-F]{2})", header))
             self.assertEqual(firmware.count(pixels), 1, name)
 
+    def test_hardware_image_is_accompanied_by_license_notices(self) -> None:
+        release = ROOT / "build/cheriot/cheriot/release"
+        if os.environ.get("GTA6_TEST_ARTWORK") is None or not (release / "gta6_wallpaper.slot2.uf2").is_file():
+            self.skipTest("requires the firmware build from tools/check")
+        for suffix, source in (("code-license", "LICENSE"), ("artwork-license", "artwork/README.md")):
+            self.assertEqual((release / f"gta6_wallpaper.{suffix}.txt").read_bytes(),
+                             (ROOT / source).read_bytes())
+        notices = (release / "gta6_wallpaper.third-party-notices.txt").read_text(encoding="utf-8")
+        summary = (ROOT / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8")
+        self.assertTrue(notices.startswith("===== THIRD-PARTY-NOTICES.md =====\n\n" + summary))
+        for marker in (
+            "===== LICENSES/Apache-2.0.txt =====\n\n\n                                 Apache License",
+            "===== cheriot-rtos/LICENSE =====",
+            "Copyright (c) Microsoft Corporation.",
+            "===== cheriot-rtos/THIRD_PARTY_NOTICES.txt =====",
+            "Copyright (c) 2019 - 2022 Daniil Goncharov",
+            "The Regents of the University of California",
+            "===== third_party/display_drivers/LICENSE =====",
+            "Copyright [2022] [Douglas Reis]",
+        ):
+            self.assertIn(marker, notices)
+
+
+APACHE_2_0_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+LOWRISC_DERIVED = ("firmware/lcd_panel.cc", "firmware/lcd_panel.hh", "xmake.lua")
+
+
+class LicenseNoticeTests(unittest.TestCase):
+    def test_upstream_derived_files_keep_their_license_and_notice(self) -> None:
+        lock = json.loads((ROOT / "flake.lock").read_text(encoding="utf-8"))
+        revision = lock["nodes"]["sonata-software"]["locked"]["rev"]
+        notices = (ROOT / "THIRD-PARTY-NOTICES.md").read_text(encoding="utf-8")
+        project_license = (ROOT / "LICENSE").read_text(encoding="utf-8")
+        self.assertIn(revision, notices)
+        for name in LOWRISC_DERIVED:
+            with self.subTest(name=name):
+                header = (ROOT / name).read_text(encoding="utf-8")[:1600]
+                self.assertIn("Copyright lowRISC Contributors.", header)
+                self.assertIn("SPDX-License-Identifier: Apache-2.0", header)
+                self.assertIn("Changes made by the Grand Time Auto project", header)
+                self.assertIn(revision, header)
+                self.assertIn(f"`{name}`", notices)
+                self.assertIn(name, project_license)
+        apache = (ROOT / "LICENSES" / "Apache-2.0.txt").read_bytes()
+        self.assertEqual(hashlib.sha256(apache).hexdigest(), APACHE_2_0_SHA256)
+
+    def test_every_source_file_declares_its_expected_license(self) -> None:
+        expected = {name: "Apache-2.0" for name in LOWRISC_DERIVED}
+        expected.update({"firmware/wallpaper_image.h": "CC-BY-4.0",
+                         "firmware/wallpaper_image_alternate.h": "CC-BY-4.0"})
+        sources = [ROOT / name for name in (
+            "xmake.lua", "flake.nix", "policy/gta6_wallpaper.rego", "web/preview.cc", "web/preview.js")]
+        for directory in ("firmware", "tools", "tests"):
+            sources += sorted(path for path in (ROOT / directory).iterdir() if path.is_file())
+        for path in sources:
+            name = path.relative_to(ROOT).as_posix()
+            with self.subTest(name=name), path.open(encoding="utf-8") as source:
+                head = "".join(line for _, line in zip(range(4), source))
+                self.assertEqual(re.findall(r"SPDX-License-Identifier: (\S+)", head),
+                                 [expected.get(name, "MIT")])
+
 
 class ProtectionTranscriptTests(unittest.TestCase):
     def fixture(self):

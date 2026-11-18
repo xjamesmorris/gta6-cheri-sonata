@@ -211,13 +211,21 @@ and its [CHERI Snake game](https://github.com/lowRISC/sonata-software/blob/v1.3/
 The demos provide board/UI references; Snake is an earlier demonstration of
 capability faults used as gameplay events. This project also builds on
 [CHERIoT RTOS](https://github.com/CHERIoT-Platform/cheriot-rtos) and Sonata's
-display-driver support. Upstream work keeps its original licenses, including
-Apache-2.0 for the Sonata examples; project notices do not relicense it or
-imply endorsement.
+display-driver support.
+
+Three files are adapted from lowRISC's Sonata software and stay under
+**Apache-2.0** with lowRISC's copyright notice: the LCD panel driver
+(`firmware/lcd_panel.cc`, `firmware/lcd_panel.hh`) and the build description
+(`xmake.lua`). [Third-party notices](THIRD-PARTY-NOTICES.md) record each
+parent work, its license and how it is used, including the CHERIoT RTOS,
+display-driver and Emscripten code compiled into firmware and browser builds.
+Upstream work keeps its original licenses; project notices do not relicense it
+or imply endorsement.
 
 ## Artwork and licenses
 
-Code and tools are [MIT licensed](LICENSE). Both supplied splash images and
+Project code and tools are [MIT licensed](LICENSE), apart from the three
+Apache-2.0 files named above. Both supplied splash images and
 their generated splash data are **CC BY 4.0**, supplied and licensed by the
 **Grand Time Auto project owner**:
 
@@ -236,7 +244,8 @@ replacement lettering or additional palette restriction. Optional `retro`,
 `pixel-art` and `photo` styles remain available. No creator or model provenance
 beyond the owner's supply and licensing statement is asserted.
 [Artwork attribution and transformation details](artwork/README.md)
-accompany browser and firmware build outputs.
+accompany browser and firmware build outputs, together with the code license
+and third-party notices.
 
 ```sh
 ./tools/convert-wallpaper --preview-dir build/preview

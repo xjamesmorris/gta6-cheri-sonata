@@ -1,8 +1,22 @@
-// SPDX-License-Identifier: MIT
+// Copyright lowRISC Contributors.
+// Copyright (c) 2026 Grand Time Auto contributors.
+// SPDX-License-Identifier: Apache-2.0
 //
 // Minimal ST7735 + PWM backlight driver for Sonata v1.3 that eliminates the
 // upstream white boot flash (holding pwm_lcd off until GRAM is cleared to
 // black) and streams full-row 20 MHz SPI bursts for smooth ~50 FPS fade-ins.
+//
+// Adapted from libraries/lcd.cc in lowRISC sonata-software v1.3, revision
+// 722cdea0207920997b0895ea1f430619b343e10c:
+// https://github.com/lowRISC/sonata-software/blob/722cdea0207920997b0895ea1f430619b343e10c/libraries/lcd.cc
+//
+// Changes made by the Grand Time Auto project in 2026: the SPI, backlight and
+// chip-select helpers and the ST7735 bring-up order are kept. The backlight
+// now stays off until controller RAM has been cleared to black. The upstream
+// font, text, line, rectangle and image drawing API, its destructor and its
+// orientation parameter are replaced by a fixed portrait panel with a
+// brightness-scaled full-row RGB565 streaming path. See
+// THIRD-PARTY-NOTICES.md.
 
 #include "lcd_panel.hh"
 

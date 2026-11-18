@@ -110,6 +110,8 @@ cleanup() {
 trap cleanup EXIT
 
 echo "tools/sim-test: launching sonata-simulator in private netns ($rundir)..."
+# sonata-simulator and its boot stub come from lowRISC sonata-system through
+# the pinned flake; the command form follows sonata-software scripts/run_sim.sh.
 # shellcheck disable=SC2016
 nix develop --accept-flake-config "$root#sim" -c bash -c '
 	cd "$1" || exit 1
