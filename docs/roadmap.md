@@ -91,6 +91,10 @@ hardware-enforced level access.
 
 ## Quality, artwork and usability
 
+- [ ] Review the licensing and provenance record for the splash artwork, in
+  particular the derivative image. The [artwork notice](../artwork/README.md)
+  records the owner's licensing statement, not an independent rights audit.
+  The static review raised this; it was deferred from 1.1.0.
 - [ ] Prepare an exact 128x160 derivative splash to avoid reliance on cropping
   and downsampling; retain attribution and reproducible RGB565 conversion.
 - [ ] Run longer on-board play/stress sessions, including repeated fault
