@@ -49,6 +49,13 @@ skips the terminal question. It does not bypass validation, and it is refused
 without a well-formed digest, so an unattended load always names the exact
 approved image.
 
+During the write the loader holds a sleep, idle and lid-switch inhibitor, and
+it mounts the drive through udisks2 without prompting. The default polkit
+policy grants both to an active local login session. From a remote session
+such as SSH they are refused or need administrator authentication, so the
+loader stops before anything is mounted or written. Run it as root in that
+case and pass the `SONATA_*` values explicitly, for example with `sudo env`.
+
 Loading creates an owner-only, randomly named snapshot under the repository's
 `build` directory. Only the validated, approved snapshot bytes are copied,
 even if a concurrent build replaces its output. The inner load repeats board,
