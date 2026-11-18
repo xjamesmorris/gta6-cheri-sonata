@@ -21,8 +21,9 @@ Only Right for story is displayed in the LCD title prompt. Hidden Down changes
 artwork during FadeIn, Wallpaper and Prompt, using the existing fresh-input
 arm flag. A held press cannot retrigger across phases; switching preserves the
 phase and fade progress. Down remains a driving input during gameplay.
-The browser artwork button also works during gameplay in v1.0.0 without
-resetting progress.
+From 1.1.0 the browser artwork button is enabled only while the splash is
+visible; in v1.0.0 it also worked during gameplay, without resetting
+progress.
 
 Hidden Left at the title opens the source QR. Its reproducible 41-module,
 246-byte packed constant is generated locally and encodes
@@ -207,9 +208,10 @@ checks a full-damage collision, billing and restart; its totals were tag 15,
 bounds 2, store 3 and local-store 0. Both matched all 20,480 LCD pixels and
 61,440 RGB channels against the native renderer.
 
-No additional hardware load was performed for this update. The board still
-runs the recorded pre-tuning image; the new build requires its own approved
-load and physical verification. Version 1.0.0 remains unchanged.
+No hardware load was performed with this update. The image's own approved
+load is recorded under
+[Version 1.1.0 physical startup](#version-110-physical-startup-november-18-2026).
+Version 1.0.0 remains unchanged.
 
 ## Static review follow-up: November 18, 2026 (UTC)
 
@@ -239,8 +241,42 @@ Results on the development host with the pinned toolchain:
 
 Not verified:
 
-- No hardware load was performed. The loader changes are covered only by
-  tests with synthetic devices, so their first use on a board needs an
-  attended load.
+- The loader's refusal paths ran only in tests with synthetic devices. The
+  load recorded below exercised its normal path on a board.
 - The firmware workflow had not yet run on GitHub-hosted runners when this
   record was written.
+
+## Version 1.1.0 physical startup: November 18, 2026
+
+The 384000-byte slot-2 UF2 image with SHA-256
+`11969b65ae57d58b45ea629408912f5f718343698294900d8acc31544457723b` is the
+version 1.1.0 release image. A clean checkout of the version 1.1.0 tree
+reproduces it byte-for-byte. It passed `tools/check` and was loaded into
+application slot 2 through the guarded loader. The owner approved that digest
+and confirmed that Pmod0 was disconnected, and the loader ran with the digest
+pinned.
+
+This was the first load with the loader changes described above. A first
+attempt from a remote session stopped before anything was mounted, because
+the host does not grant the sleep inhibitor to such a session without
+authentication; the load then ran as root. The mount with
+`nosuid,nodev,noexec,nosymfollow` succeeded, the volume was FAT, and the
+image was written by exclusive, no-follow creation. The drive unmounted
+cleanly and no unfinished-write latch remained. Bitstream storage and the
+other application slots were not written.
+
+Fresh output reported selected slot 2, `PASS hardware`, the CHERIoT hardware
+backend, `Wallpaper ready`, splash `Screen 1` and title `Screen 2`. Startup
+totals were tag 2, bounds 2, store 3 and local-store 0. Wallet balances zero,
+positive and negative stayed unchanged, and the successful-access,
+wrong-cause and retention controls passed. The normal road check measured
+11899 cycles and 1424 stack bytes.
+
+One run was then played on the board, from the title to the WASTED screen.
+The console reported recovered faults on 52 occasions during that run: 30
+tag, 7 bounds and 15 store-permission. No unexpected failure or reset
+appeared. No serial commands were sent.
+
+This is image-specific evidence from one startup and one run, not exhaustive
+physical gameplay acceptance or a stress test. Touch controls exist only in
+the browser preview.

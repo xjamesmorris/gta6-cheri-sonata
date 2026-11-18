@@ -4,16 +4,19 @@ A small portrait driving game for the lowRISC Sonata v1.3 FPGA board, with a
 board-free WebAssembly preview. The repository name is `gta6-cheri-sonata`.
 The shared C++ game and RGB565 renderer target a **128×160** ST7735 LCD.
 
-This README describes **current `main`**, including improvements after the
-[v1.0.0 release](https://github.com/xjamesmorris/gta6-cheri-sonata/releases/tag/v1.0.0).
+This README describes **version 1.1.0**, the owner-authorized release approved
+on November 18, 2026. Its firmware image is attached to the
+[v1.1.0 release](https://github.com/xjamesmorris/gta6-cheri-sonata/releases/tag/v1.1.0);
+the [v1.0.0 release](https://github.com/xjamesmorris/gta6-cheri-sonata/releases/tag/v1.0.0)
+is unchanged.
 Published tags and release assets are left unchanged as project policy. That
 is a maintainer commitment, not GitHub's immutable-release setting.
 The browser link runs the latest separately approved Pages deployment.
 Real CHERIoT protection, fault recovery, runtime artwork switching, a source
-QR and emulated browser indicators are implemented. Recorded release and
-post-release firmware images passed physical-board startup checks and reached
-the title screen. These are owner-attested, image-specific startup records,
-not exhaustive physical stress or interactive joystick acceptance; see
+QR and emulated browser indicators are implemented. Each released firmware
+image passed a physical-board startup check and reached the title screen.
+These are owner-attested, image-specific startup records, not exhaustive
+physical stress or interactive joystick acceptance; see
 [verification boundaries](docs/architecture.md).
 A browser result is **not** evidence of hardware capability enforcement.
 
@@ -319,6 +322,7 @@ manual dispatch from `main`, an approval variable, and the `github-pages`
 environment. Nothing enables Pages or creates releases automatically.
 
 The owner approved initial publication, Pages deployment and the v1.0.0
-release on November 17, 2026. That approval does not bypass workflow gates or
+release on November 17, 2026, and the v1.1.0 release and its Pages deployment
+on November 18, 2026. Those approvals do not bypass workflow gates or
 configured environment protections, and a local build is not a deployed site.
 See [Pages configuration and verified action pins](docs/pages.md).

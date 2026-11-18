@@ -7,8 +7,9 @@ during the splash, title navigation, the source QR and emulated CHERI LEDs
 are included.
 
 Later `main` updates use the same gates and need their own owner deployment
-approval. Updating Pages does not move an existing release tag or replace
-its firmware assets.
+approval. The owner approved the v1.1.0 release and its Pages deployment on
+November 18, 2026. Updating Pages does not move an existing release tag or
+replace its firmware assets.
 
 Source: https://github.com/xjamesmorris/gta6-cheri-sonata
 
@@ -69,7 +70,7 @@ the repository and environment gates:
    deployments on hold again.
 
 A site deployment is not a firmware release. There is no tag/release workflow;
-the owner-authorized v1.0.0 tag and release are separate publication actions.
+each owner-authorized tag and release is a separate publication action.
 
 ## Verified action revisions
 

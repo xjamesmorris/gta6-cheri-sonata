@@ -3,37 +3,38 @@
 This is a working backlog, not a promise of release dates. GitHub issues track
 implementation; release notes describe what has actually shipped.
 
-## Tagged release and current main
+## Tagged releases
 
 Version 1.0.0 includes CHERIoT fault recovery, protected wallet/road/damage
 demonstrations, both splash choices, the source QR, browser indicators and
 zebra crossings. Zebra crossings are already implemented, not an outstanding
 feature.
 
-The following changes are implemented on `main` after 1.0.0. They are not
-part of the 1.0.0 tag or its firmware assets, which project policy leaves
-unchanged; Pages follows the latest separately approved deployment.
+Version 1.1.0 adds the following changes. They are not part of the 1.0.0 tag
+or its firmware assets, which project policy leaves unchanged; Pages follows
+the latest separately approved deployment.
 
 | Work | Tracking | Release status |
 | --- | --- | --- |
-| Enable the web artwork button only while the splash is visible | [xjamesmorris/gta6-cheri-sonata#1](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/1) | Implemented on main |
-| Add several billboard messages | [xjamesmorris/gta6-cheri-sonata#2](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/2) | Implemented on main |
-| Occasional green frog road crossings | [xjamesmorris/gta6-cheri-sonata#3](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/3) | Implemented on main |
-| Phone touch joystick and portrait/landscape layouts | Owner-requested usability work | Implemented on main |
-| Gentler collision damage and survivable five-star police hits | Owner-requested gameplay tuning | Implemented on main |
-| Deny-by-default audit policy for components, device grants and application imports | Static review follow-up | Implemented on main |
-| Loader, converter and CI hardening; third-party notices and Apache-2.0 headers for files adapted from lowRISC | Static review follow-up | Implemented on main |
+| Enable the web artwork button only while the splash is visible | [xjamesmorris/gta6-cheri-sonata#1](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/1) | Released in 1.1.0 |
+| Add several billboard messages | [xjamesmorris/gta6-cheri-sonata#2](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/2) | Released in 1.1.0 |
+| Occasional green frog road crossings | [xjamesmorris/gta6-cheri-sonata#3](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/3) | Released in 1.1.0 |
+| Phone touch joystick and portrait/landscape layouts | Owner-requested usability work | Released in 1.1.0 |
+| Gentler collision damage and survivable five-star police hits | Owner-requested gameplay tuning | Released in 1.1.0 |
+| Deny-by-default audit policy for components, device grants and application imports | Static review follow-up | Released in 1.1.0 |
+| Loader, converter and CI hardening; third-party notices and Apache-2.0 headers for files adapted from lowRISC | Static review follow-up | Released in 1.1.0 |
 
 The current frog implementation is decorative and non-colliding: it does not
 change score, damage, wanted stars or wallet authority.
 
 - [x] Integrate the three tracked post-release gameplay changes.
 - [x] Record native/browser/RTL results and image-specific hardware startup.
-- [ ] Flash and physically playtest the later damage-tuning image with separate
-  authorization; earlier startup records do not cover the new build.
-- [ ] Complete extended physical playtesting and stress checks.
-- [ ] Select and publish the next tagged firmware release when approved; keep
-  the 1.0.0 tag and firmware assets unchanged.
+- [x] Load the later damage-tuning image with separate authorization and
+  record its image-specific startup.
+- [x] Publish version 1.1.0 as the next tagged firmware release; the 1.0.0
+  tag and firmware assets are unchanged.
+- [ ] Complete extended physical playtesting and stress checks, including the
+  retuned collision damage.
 
 ## Engineering and release hygiene
 
@@ -51,7 +52,7 @@ change score, damage, wanted stars or wallet authority.
 
 ## Audio
 
-No audio backend is shipped in 1.0.0. The existing
+No audio backend is shipped in 1.0.0 or 1.1.0. The existing
 [audio-options research](audio-options.md) covers browser, host-relay, USB
 and external-module possibilities.
 

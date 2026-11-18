@@ -156,3 +156,22 @@ scenes match the native image exactly. See
 [architecture](architecture.md#post-release-main-startup-november-17-2026)
 for the image-specific evidence and limits. These changes do not alter the
 version 1.0.0 release, which project policy leaves unchanged.
+
+## Version 1.1.0 verification
+
+The version 1.1.0 image is 384000 bytes with SHA-256
+`11969b65ae57d58b45ea629408912f5f718343698294900d8acc31544457723b`. It
+carries the post-release changes above and the later gentler collision
+damage. A static review then led to a deny-by-default audit policy, host-tool
+hardening and tracked third-party notices without changing the firmware
+image.
+
+Its guarded slot-2 load reached the title screen with `PASS hardware`, tag 2,
+bounds 2, store 3 and local-store 0. The observed normal road check used
+11899 cycles and 1424 stack bytes. One run was then played on the board to
+the WASTED screen with recovered tag, bounds and store-permission faults and
+no reset; no serial input was sent. See
+[architecture](architecture.md#version-110-physical-startup-november-18-2026)
+for the image-specific evidence and limits, and
+[the static review follow-up](architecture.md#static-review-follow-up-november-18-2026-utc)
+for the build, audit and RTL results. The version 1.0.0 release is unchanged.
