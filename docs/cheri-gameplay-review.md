@@ -155,4 +155,4 @@ and bounded decorative frog behavior. The frog and updated-billboard RTL
 scenes match the native image exactly. See
 [architecture](architecture.md#post-release-main-startup-november-17-2026)
 for the image-specific evidence and limits. These changes do not alter the
-immutable version 1.0.0 release.
+version 1.0.0 release, which project policy leaves unchanged.

@@ -5,13 +5,15 @@ board-free WebAssembly preview. The repository name is `gta6-cheri-sonata`.
 The shared C++ game and RGB565 renderer target a **128×160** ST7735 LCD.
 
 This README describes **current `main`**, including improvements after the
-immutable [v1.0.0 release](https://github.com/xjamesmorris/gta6-cheri-sonata/releases/tag/v1.0.0).
+[v1.0.0 release](https://github.com/xjamesmorris/gta6-cheri-sonata/releases/tag/v1.0.0).
+Published tags and release assets are left unchanged as project policy. That
+is a maintainer commitment, not GitHub's immutable-release setting.
 The browser link runs the latest separately approved Pages deployment.
 Real CHERIoT protection, fault recovery, runtime artwork switching, a source
 QR and emulated browser indicators are implemented. Recorded release and
 post-release firmware images passed physical-board startup checks and reached
-the title screen. This is image-specific startup proof, not exhaustive
-physical stress or interactive joystick acceptance; see
+the title screen. These are owner-attested, image-specific startup records,
+not exhaustive physical stress or interactive joystick acceptance; see
 [verification boundaries](docs/architecture.md).
 A browser result is **not** evidence of hardware capability enforcement.
 
@@ -94,6 +96,8 @@ exact audit contract, together with the retained
 Development used **GitHub Copilot**, **Claude** and **GPT-6 Astra**.
 The [LLM contribution policy](LLM-POLICY.md) explains disclosure, human
 responsibility, publication approval and evidence requirements.
+[Contributing](CONTRIBUTING.md) covers checks, licensing and provenance, and
+the [security policy](SECURITY.md) says how to report a vulnerability.
 
 ## Browser and host development
 

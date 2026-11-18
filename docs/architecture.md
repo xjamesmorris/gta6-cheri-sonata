@@ -136,6 +136,16 @@ electrical behavior or real-board LCD timing. The owner authorized v1.0.0 with
 these verification boundaries; release authorization does not claim exhaustive
 interactive physical acceptance.
 
+The hardware records below are **owner-attested summaries**. The console
+transcripts behind them are private and are not published, so nobody else can
+check them independently. What can be checked from public material is
+narrower. The build, audit and RTL results reproduce from this tree with the
+pinned toolchain. The v1.0.0 UF2 digest matches the published release asset.
+From this change onward, the
+[firmware workflow](../.github/workflows/firmware.yml) records build, audit
+and RTL results for pushes to `main` and for pull requests, and keeps its
+artifacts for 30 days. It has no results for earlier commits.
+
 ## Version 1.0.0 physical startup: November 17, 2026
 
 The 381952-byte slot-2 UF2 image with SHA-256
@@ -200,3 +210,37 @@ bounds 2, store 3 and local-store 0. Both matched all 20,480 LCD pixels and
 No additional hardware load was performed for this update. The board still
 runs the recorded pre-tuning image; the new build requires its own approved
 load and physical verification. Version 1.0.0 remains unchanged.
+
+## Static review follow-up: November 18, 2026 (UTC)
+
+Automated static review: **unlisted**. As with the design review, the
+reviewer is not identified in this publication-bound record, and this is not
+a human sign-off. The review read commit `be0163d` without building or
+running it.
+
+Its findings on notices for adapted code, the audit policy, the host tools
+and CI led to Apache-2.0 headers and tracked third-party notices for the
+files adapted from lowRISC, the deny-by-default audit policy, loader and
+converter hardening, and the firmware workflow. Firmware behavior is
+unchanged: the hardware build is still the 384000-byte image with SHA-256
+`11969b65ae57d58b45ea629408912f5f718343698294900d8acc31544457723b`, and
+`game.wasm` is byte-identical to the previous browser build.
+
+Results on the development host with the pinned toolchain:
+
+- `tools/check` passed for both artwork selections: warning-free build, audit
+  result `true`, slot-2 UF2 validation, 27 Python tests and the native game
+  tests. The audit rejected all 82 policy mutations; the previous policy
+  accepted 30 of them, including an extra compartment holding an I2C device.
+- `tools/check-browser` passed its sanitizer run and 22 browser tests.
+- The exhaustive `cheri-selftest` RTL fixture passed with handler-verified
+  totals of tag 1105, bounds 147, store 7 and local-store 0. It and the
+  `wallpaper` fixture matched all 20,480 LCD pixels and 61,440 RGB channels.
+
+Not verified:
+
+- No hardware load was performed. The loader changes are covered only by
+  tests with synthetic devices, so their first use on a board needs an
+  attended load.
+- The firmware workflow had not yet run on GitHub-hosted runners when this
+  record was written.

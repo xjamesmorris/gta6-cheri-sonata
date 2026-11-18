@@ -11,8 +11,8 @@ zebra crossings. Zebra crossings are already implemented, not an outstanding
 feature.
 
 The following changes are implemented on `main` after 1.0.0. They are not
-part of the immutable 1.0.0 tag or its firmware assets; Pages follows the
-latest separately approved deployment.
+part of the 1.0.0 tag or its firmware assets, which project policy leaves
+unchanged; Pages follows the latest separately approved deployment.
 
 | Work | Tracking | Release status |
 | --- | --- | --- |
@@ -21,6 +21,8 @@ latest separately approved deployment.
 | Occasional green frog road crossings | [xjamesmorris/gta6-cheri-sonata#3](https://github.com/xjamesmorris/gta6-cheri-sonata/issues/3) | Implemented on main |
 | Phone touch joystick and portrait/landscape layouts | Owner-requested usability work | Implemented on main |
 | Gentler collision damage and survivable five-star police hits | Owner-requested gameplay tuning | Implemented on main |
+| Deny-by-default audit policy for components, device grants and application imports | Static review follow-up | Implemented on main |
+| Loader, converter and CI hardening; third-party notices and Apache-2.0 headers for files adapted from lowRISC | Static review follow-up | Implemented on main |
 
 The current frog implementation is decorative and non-colliding: it does not
 change score, damage, wanted stars or wallet authority.
@@ -32,6 +34,20 @@ change score, damage, wanted stars or wallet authority.
 - [ ] Complete extended physical playtesting and stress checks.
 - [ ] Select and publish the next tagged firmware release when approved; keep
   the 1.0.0 tag and firmware assets unchanged.
+
+## Engineering and release hygiene
+
+- [x] Run the firmware build, audit and capability self-test in CI and keep
+  their outputs as workflow artifacts.
+- [x] Track third-party notices and ship them with firmware and browser
+  builds.
+- [ ] Refresh the nixpkgs revision used by the preview and CI shells, which
+  dates from March 2025, independently of the firmware toolchain pin.
+- [ ] Sign release tags and attach build provenance to released UF2 images.
+- [ ] Decide whether to enable GitHub's immutable-release setting for future
+  releases.
+- [ ] Publish redacted hardware transcripts if that can be done without
+  device identifiers.
 
 ## Audio
 

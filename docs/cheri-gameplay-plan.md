@@ -293,7 +293,7 @@ build, merge the branch, change a public visibility setting, or create a PR.
 
 - [Pinned Sonata software](https://github.com/lowRISC/sonata-software/tree/722cdea0207920997b0895ea1f430619b343e10c)
 - [CHERIoT compartment error handling](https://cheriot.org/book/compartments.html)
-- [CHERIoT error-handling update](https://cheriot.org/rtos/2024/08/15/introducing-improved-error-handling.html)
+- [Improved error handling in CHERIoT RTOS](https://cheriot.org/rtos/errors/2024/09/20/error-handling.html)
 - Verified pinned source: `sdk/include/compartment.h`, `cheri.hh`, `unwind.h`,
   and `tests/crash_recovery_inner.cc` / `crash_recovery_outer.cc`.
 
