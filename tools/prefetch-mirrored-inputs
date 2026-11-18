@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: MIT
+"""Fetch flake inputs from a mirror when their own host cannot be reached.
+
+The pinned Sonata software locks its documentation tool, mdutils, to
+codeberg.org. Nix must fetch that input to evaluate the firmware and
+simulator shells, although this project never uses it. A locked input that
+is already in the Nix store is not fetched again, so this tool adds the
+locked revision from the author's GitHub repository. Nix names the store
+path after the content hash in flake.lock, and that hash is checked here, so
+a mirror cannot supply different content.
+
+Usage: prefetch-mirrored-inputs
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import subprocess
+import sys
+
+MIRRORS = {
+    "https://codeberg.org/HU90m/mdutils.git": "https://github.com/HU90m/mdutils.git",
+}
+
+
+def mirrored_inputs(lock):
+    """Return {(mirror, ref, revision): content hash} for the locked inputs with a mirror."""
+    wanted = {}
+    for node in lock["nodes"].values():
+        locked = node.get("locked", {})
+        mirror = MIRRORS.get(locked.get("url"))
+        if mirror and locked.get("type") == "git":
+            wanted[(mirror, locked.get("ref", ""), locked["rev"])] = locked["narHash"]
+    return wanted
+
+
+def main() -> int:
+    if len(sys.argv) != 1:
+        print("Usage: prefetch-mirrored-inputs", file=sys.stderr)
+        return 2
+    lock_path = pathlib.Path(__file__).resolve().parent.parent / "flake.lock"
+    wanted = mirrored_inputs(json.loads(lock_path.read_text(encoding="utf-8")))
+    for (mirror, ref, revision), expected in sorted(wanted.items()):
+        query = f"ref={ref}&rev={revision}" if ref else f"rev={revision}"
+        fetched = subprocess.run(
+            ["nix", "--extra-experimental-features", "nix-command flakes",
+             "flake", "prefetch", "--json", f"git+{mirror}?{query}"],
+            stdout=subprocess.PIPE, text=True, check=False,
+        )
+        if fetched.returncode != 0:
+            print(f"FAIL: could not fetch {revision} from {mirror}", file=sys.stderr)
+            return 1
+        actual = json.loads(fetched.stdout)["hash"]
+        if actual != expected:
+            print(f"FAIL: {mirror} at {revision} has content hash {actual}, "
+                  f"but flake.lock records {expected}", file=sys.stderr)
+            return 1
+        print(f"OK: {revision} from {mirror} matches flake.lock")
+    if not wanted:
+        print("OK: flake.lock has no input with a known mirror")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

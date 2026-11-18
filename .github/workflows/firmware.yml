@@ -35,6 +35,8 @@ jobs:
           enable_kvm: false
           extra_nix_config: |
             experimental-features = nix-command flakes
+      - name: Fetch the Codeberg-hosted flake input from its GitHub mirror
+        run: ./tools/prefetch-mirrored-inputs
       - name: Build the firmware, audit it and run the host checks
         run: |
           mkdir -p build/ci-evidence
@@ -79,6 +81,8 @@ jobs:
           enable_kvm: false
           extra_nix_config: |
             experimental-features = nix-command flakes
+      - name: Fetch the Codeberg-hosted flake input from its GitHub mirror
+        run: ./tools/prefetch-mirrored-inputs
       - name: Allow the simulator's private user and network namespaces
         run: |
           cat > "$RUNNER_TEMP/sonata-sim-unshare.apparmor" <<'PROFILE'

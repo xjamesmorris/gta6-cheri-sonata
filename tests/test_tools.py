@@ -753,6 +753,44 @@ class LicenseNoticeTests(unittest.TestCase):
                                  [expected.get(name, "MIT")])
 
 
+class PrefetchMirroredInputsTests(unittest.TestCase):
+    def run_tool(self, reported_hash):
+        with tempfile.TemporaryDirectory() as tmp:
+            stub = pathlib.Path(tmp, "nix")
+            stub.write_text(f"#!{sys.executable}\n" + r"""
+import json, os, sys
+with open(os.environ["TEST_NIX_CALLS"], "a") as log:
+    log.write(json.dumps(sys.argv[1:]) + "\n")
+print(json.dumps({"hash": os.environ["TEST_NIX_HASH"]}))
+""", encoding="utf-8")
+            stub.chmod(0o755)
+            calls = pathlib.Path(tmp, "calls")
+            calls.touch()
+            result = subprocess.run(
+                [sys.executable, "-B", str(ROOT / "tools/prefetch-mirrored-inputs")],
+                env={**os.environ, "PATH": f"{tmp}:{os.environ['PATH']}",
+                     "TEST_NIX_CALLS": str(calls), "TEST_NIX_HASH": reported_hash},
+                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30,
+            )
+            return result, [json.loads(line)[-1] for line in calls.read_text().splitlines()]
+
+    def test_every_codeberg_input_is_fetched_from_its_mirror_and_hash_checked(self) -> None:
+        nodes = json.loads((ROOT / "flake.lock").read_text(encoding="utf-8"))["nodes"]
+        codeberg = {(node["locked"]["url"], node["locked"]["ref"], node["locked"]["rev"],
+                     node["locked"]["narHash"])
+                    for node in nodes.values() if "codeberg.org" in node.get("locked", {}).get("url", "")}
+        self.assertEqual({url for url, *_ in codeberg}, {"https://codeberg.org/HU90m/mdutils.git"})
+        (_, ref, revision, nar_hash), = codeberg
+
+        result, fetched = self.run_tool(nar_hash)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(fetched, [f"git+https://github.com/HU90m/mdutils.git?ref={ref}&rev={revision}"])
+
+        result, _ = self.run_tool("sha256-" + "A" * 43 + "=")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(f"flake.lock records {nar_hash}", result.stderr)
+
+
 class ProtectionTranscriptTests(unittest.TestCase):
     def fixture(self):
         classes = ("Tag", "Bounds", "Permit Store", "Permit Store Local Cap")

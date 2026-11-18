@@ -142,6 +142,19 @@ The scripts enter the appropriate Nix shell automatically.
 Firmware and simulator shells also provide Pillow, so image conversion and
 its tests do not depend on a host-system Pillow installation.
 
+Evaluating the firmware and simulator shells fetches every input in that
+graph. One of them, a documentation tool that the Sonata software locks to
+`codeberg.org`, is not used here but must still be fetched. If that host
+cannot be reached, run this once first:
+
+```sh
+./tools/prefetch-mirrored-inputs
+```
+
+It fetches the locked revision from the author's GitHub repository into the
+Nix store and checks it against the content hash in `flake.lock`, so Nix
+no longer needs the original host. The firmware workflow runs it too.
+
 ## Firmware build and audit
 
 ```sh

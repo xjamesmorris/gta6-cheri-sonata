@@ -96,6 +96,10 @@ jobs have a read-only contents token and no Pages, release or deployment
 permission. Its simulator job loads a second runner-only AppArmor profile, for
 `/usr/bin/unshare`, so the simulator can have its private user and network
 namespaces under the same Ubuntu restriction.
+Both jobs first run `tools/prefetch-mirrored-inputs`. On November 18, 2026
+`codeberg.org`, which hosts one transitive flake input, did not resolve from
+hosted runners, so that tool fetches the locked revision from a GitHub mirror
+and checks it against the content hash in `flake.lock`.
 Recheck upstream release notes, inputs and immutable revisions when updating.
 
 Primary sources:

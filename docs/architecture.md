@@ -243,8 +243,12 @@ Not verified:
 
 - The loader's refusal paths ran only in tests with synthetic devices. The
   load recorded below exercised its normal path on a board.
-- The firmware workflow had not yet run on GitHub-hosted runners when this
-  record was written.
+- The firmware workflow's first run on GitHub-hosted runners stopped during
+  Nix evaluation, before any build: `codeberg.org`, which hosts one
+  transitive flake input, did not resolve. The workflow now fetches that
+  input from a GitHub mirror and checks its locked content hash. Its results
+  on hosted runners are in the repository's Actions history, not in this
+  record.
 
 ## Version 1.1.0 physical startup: November 18, 2026
 
