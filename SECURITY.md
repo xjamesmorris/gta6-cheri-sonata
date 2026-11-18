@@ -30,11 +30,10 @@ audit policy can be changed by anyone who can change the sources.
 
 ## Reporting a vulnerability
 
-Please report privately first. Use **Report a vulnerability** on the
-repository's [Security tab](https://github.com/xjamesmorris/gta6-cheri-sonata/security)
-when that button is offered. If it is not, open an issue that only asks for a
-private contact channel. Do not put details, affected lines or a proof of
-concept in a public issue.
+Open a normal
+[issue](https://github.com/xjamesmorris/gta6-cheri-sonata/issues), or email
+the maintainer at [jmorris@namei.org](mailto:jmorris@namei.org). Issues are
+public; email reaches only the maintainer.
 
 A useful report names the commit or release, the affected file, what an
 attacker must control, and the impact you observed or expect. Say whether

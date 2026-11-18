@@ -7,8 +7,7 @@ no promise of review time or that a change will be accepted.
 
 - Read the [LLM contribution policy](LLM-POLICY.md). It applies to code,
   tests, documentation, reviews and commit messages.
-- Report security problems privately, as described in
-  [SECURITY.md](SECURITY.md).
+- Report security problems as described in [SECURITY.md](SECURITY.md).
 - New hardware drivers, device authority, persistent state or stronger
   security claims need their own design and validation first; see the
   [roadmap](docs/roadmap.md).
