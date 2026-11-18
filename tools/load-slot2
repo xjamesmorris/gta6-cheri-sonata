@@ -12,7 +12,8 @@
 # `load` is for the human operator in an interactive terminal after confirming
 # Pmod0 is disconnected from external hardware (every UF2 copy stops and reloads
 # the FPGA).  `load` validates and writes a private snapshot, so a concurrent
-# rebuild cannot change the approved bytes.
+# rebuild cannot change the approved bytes.  `--yes-pmod0-disconnected` skips
+# the terminal question and therefore requires SONATA_EXPECT_UF2_SHA256.
 set -euo pipefail
 
 self=$(readlink -f "${BASH_SOURCE[0]}")
@@ -35,6 +36,7 @@ uf2_serial=${SONATA_UF2_SERIAL:-}
 ftdi_alias=${SONATA_FTDI_DEVICE:-}
 uf2_alias=${SONATA_UF2_DEVICE:-}
 console_log=${SONATA_CONSOLE_LOG:-}
+console_echo_limit=65536
 hub_port='^[0-9]+-[0-9]+(\.[0-9]+)*$'
 
 usage() {
@@ -108,7 +110,7 @@ run_preflight() {
 	if [[ "${1:-}" == "snapshot" ]]; then
 		snapshot_image
 	fi
-	"$root/tools/check-slot2-uf2" "$image" "$image_strip"
+	python3 -I -B "$root/tools/check-slot2-uf2" "$image" "$image_strip"
 	image_sha256=$(sha256_of "$image")
 	if [[ -n "$expected_sha256" ]]; then
 		[[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] ||
@@ -128,6 +130,7 @@ run_preflight() {
 	[[ $(udev_prop "$uf2_alias" ID_VENDOR_ID) == "2b3e" &&
 	   $(udev_prop "$uf2_alias" ID_MODEL_ID) == "4002" &&
 	   $(udev_prop "$uf2_alias" ID_FS_LABEL) == "SONATA" &&
+	   $(udev_prop "$uf2_alias" ID_FS_TYPE) == "vfat" &&
 	   $(udev_prop "$uf2_alias" ID_SERIAL_SHORT) == "$uf2_serial" &&
 	   $(udev_prop "$uf2_alias" DEVTYPE) == "disk" ]] ||
 		fail "$uf2_alias is not a SONATA RP2040 programming drive."
@@ -163,6 +166,27 @@ run_preflight() {
 	printf 'OK: preflight passed for application slot 2.\n'
 }
 
+# Leave a mounted drive that has not been written: unmount it and fail
+# without setting the unfinished-write latch.
+refuse_mounted() {
+	udisksctl unmount --no-user-interaction -b "$1" >/dev/null 2>&1 || true
+	fail "$2; nothing was written."
+}
+
+# The console log holds bytes chosen by whatever firmware is running. Show a
+# bounded amount with colour sequences and carriage returns removed and every
+# other control or non-ASCII byte made visible, so it cannot drive the terminal.
+show_new_console_output() {
+	local total
+	total=$(tail -n +"$(($2 + 1))" "$1" | wc -c) || total=0
+	tail -n +"$(($2 + 1))" "$1" | head -c "$console_echo_limit" |
+		LC_ALL=C sed 's/\x1b\[[0-9;]*m//g' | LC_ALL=C tr -d '\r' | LC_ALL=C cat -vt || true
+	if ((total > console_echo_limit)); then
+		printf '\n==== Truncated: showed the first %s of %s new bytes; read the log for the rest.\n' \
+			"$console_echo_limit" "$total"
+	fi
+}
+
 do_load_inner() {
 	[[ "$expected_sha256" =~ ^[0-9a-f]{64}$ && -f "$image" && ! -L "$image" ]] ||
 		fail "Invalid approved snapshot; nothing was mounted or written."
@@ -173,22 +197,37 @@ do_load_inner() {
 		start_lines=$(wc -l <"$console_log")
 	fi
 
-	local mount_out mount_dir uf2_node
+	local mount_dir mount_fs uf2_node dest
 	uf2_node=$verified_uf2_node
 	printf 'Mounting %s...\n' "$uf2_node"
-	mount_out=$(udisksctl mount --no-user-interaction -b "$uf2_node" --options nosuid,nodev,noexec)
-	printf '%s\n' "$mount_out"
-	mount_dir=$(findmnt -n -o TARGET -S "$uf2_node")
-	if [[ -z "$mount_dir" || ! -d "$mount_dir" ]]; then
-		udisksctl unmount --no-user-interaction -b "$uf2_node" >/dev/null 2>&1 || true
-		fail "Could not determine mount directory for $uf2_node."
+	udisksctl mount --no-user-interaction -b "$uf2_node" \
+		--options nosuid,nodev,noexec,nosymfollow >/dev/null
+	mount_dir=$(findmnt -n -o TARGET -S "$uf2_node") || mount_dir=
+	if [[ -z "$mount_dir" || ! -d "$mount_dir" || "$mount_dir" == *[[:cntrl:]]* ]]; then
+		refuse_mounted "$uf2_node" "Could not determine a usable mount directory for $uf2_node"
+	fi
+	printf 'Mounted %s at %s\n' "$uf2_node" "$mount_dir"
+
+	# The identity checks describe the device, not what it now presents. Only
+	# FAT is accepted: it cannot hold the links a hostile volume could use to
+	# redirect the copy to another file.
+	mount_fs=$(findmnt -n -o FSTYPE -S "$uf2_node") || mount_fs=
+	[[ "$mount_fs" == "vfat" ]] ||
+		refuse_mounted "$uf2_node" "$uf2_node is mounted as '$mount_fs', not vfat"
+	dest=$mount_dir/${uf2##*/}
+	if [[ -L "$dest" || ( -e "$dest" && ! -f "$dest" ) ]]; then
+		refuse_mounted "$uf2_node" "$dest exists and is not a regular file"
 	fi
 
 	mkdir -p "$(dirname "$latch")"
 	printf 'started=%s\nuf2=%s\nsha256=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$uf2" "$image_sha256" >"$latch"
 
 	printf 'Copying %s to %s (do NOT interrupt)...\n' "$(basename "$uf2")" "$mount_dir/"
-	cp -- "$image" "$mount_dir/"
+	# The genuine drive is a RAM disk that lists the file from an earlier load
+	# until the board is power-cycled. Remove that entry, then create the new
+	# file exclusively and without following links.
+	rm -f -- "$dest"
+	dd if="$image" of="$dest" bs=1M conv=excl,fsync oflag=nofollow status=none
 	sync
 
 	printf 'Unmounting %s...\n' "$uf2_node"
@@ -200,7 +239,7 @@ do_load_inner() {
 
 	if [[ -f "$console_log" ]]; then
 		printf '==== New console lines from %s:\n' "$console_log"
-		tail -n +"$((start_lines + 1))" "$console_log" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r' || true
+		show_new_console_output "$console_log" "$start_lines"
 	fi
 	printf '\nDone. Set SW7 (SW App) to 2 and press SW5 (processor reset) to view the wallpaper;\n'
 	printf 'select another application slot and press SW5 to return to its existing firmware.\n'
@@ -208,6 +247,10 @@ do_load_inner() {
 
 run_load() {
 	local confirmed=${1:-false}
+	require_configuration
+	if [[ "$confirmed" == "true" && ! "$expected_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+		fail "--yes-pmod0-disconnected requires SONATA_EXPECT_UF2_SHA256, the approved UF2 digest as 64 lowercase hexadecimal digits; nothing was mounted or written."
+	fi
 	run_preflight snapshot
 
 	if [[ "$confirmed" != "true" ]]; then

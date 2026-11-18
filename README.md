@@ -296,9 +296,10 @@ replay hardware startup self-tests. See [architecture](docs/architecture.md).
 
 Read [the operator guide](docs/board-loading.md) before using `tools/load-slot2`.
 Board identities and device paths **must be configured explicitly**. The loader
-retains identity/topology checks, mount and unfinished-write guards, private
-approved-byte snapshots, isolated Python and optional digest-specific approval.
-No board configuration is bundled.
+retains identity/topology checks, FAT-only mounts with exclusive no-follow
+writes, unfinished-write guards, private approved-byte snapshots, isolated
+Python, a sanitized console echo and digest-specific approval, which is
+mandatory for unattended loads. No board configuration is bundled.
 
 ## GitHub Pages
 

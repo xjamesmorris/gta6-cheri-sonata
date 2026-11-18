@@ -171,6 +171,7 @@ if device == os.environ["SONATA_FTDI_DEVICE"]:
 elif device == os.environ["SONATA_UF2_DEVICE"]:
     props = {"ID_VENDOR_ID": "2b3e", "ID_MODEL_ID": "4002",
              "ID_FS_LABEL": "SONATA",
+             "ID_FS_TYPE": os.environ.get("TEST_UF2_FS_TYPE", "vfat"),
              "ID_SERIAL_SHORT": os.environ.get("TEST_UF2_SERIAL", "SYNTHETIC-UF2-0001"),
              "DEVTYPE": "disk"}
     hub = os.environ.get("TEST_UF2_HUB", "1-2")
@@ -198,6 +199,8 @@ if not mounted.exists():
     raise SystemExit(1)
 if "TARGET" in sys.argv:
     print(mounted.read_text())
+elif "FSTYPE" in sys.argv:
+    print(os.environ.get("TEST_MOUNT_FS_TYPE", "vfat"))
 """,
             "udisksctl": r"""
 import os, pathlib, shutil, sys
@@ -210,7 +213,15 @@ if device != os.environ["SONATA_UF2_DEVICE"]:
 if sys.argv[1] == "mount":
     if os.environ.get("TEST_REBUILD_AT_MOUNT"):
         shutil.copyfile(os.environ["TEST_REBUILD_AT_MOUNT"], os.environ["TEST_BUILD_UF2"])
-    (state / "mount").mkdir()
+    (state / "mount").mkdir(exist_ok=True)
+    present = os.environ.get("TEST_VOLUME_ENTRY")
+    entry = state / "mount" / pathlib.Path(os.environ["TEST_BUILD_UF2"]).name
+    if present == "directory":
+        entry.mkdir()
+    elif present == "stale file":
+        entry.write_bytes(b"left by an earlier load")
+    elif present:
+        entry.symlink_to(present)
     (state / "mounted").write_text(str(state / "mount"))
     print(f"Mounted {device} at {state / 'mount'}")
 elif sys.argv[1] == "unmount":
@@ -239,7 +250,13 @@ os.closerange(3, 1024)
 os.execv(command[0], command)
 """,
             "sync": "",
-            "sleep": "",
+            "sleep": r"""
+import os
+arriving = os.environ.get("TEST_CONSOLE_OUTPUT")
+if arriving:
+    with open(arriving, "rb") as source, open(os.environ["SONATA_CONSOLE_LOG"], "ab") as log:
+        log.write(source.read())
+""",
         }
         for name, code in commands.items():
             command = tools / name
@@ -264,20 +281,22 @@ os.execv(command[0], command)
         for name in commands:
             assert shutil.which(name, path=env["PATH"]) == str(tools / name)
 
-        def run(*args, cwd=None, **overrides):
+        def run(*args, cwd=None, text=True, **overrides):
             return subprocess.run(
                 [str(tools / "load-slot2"), *args],
                 env={**env, **overrides},
                 cwd=cwd,
                 stdin=subprocess.DEVNULL,
                 capture_output=True,
-                text=True,
+                text=text,
                 timeout=30,
             )
 
         yield types.SimpleNamespace(
             root=root, release=release, run=run, write_artifacts=write_artifacts,
             build_uf2=build_uf2, scratch=scratch,
+            digest=hashlib.sha256(build_uf2.read_bytes()).hexdigest(),
+            console_log=root / "console.log",
             latch=root / "build" / "load-slot2-not-finished",
             mounted_copy=state / "mount" / build_uf2.name,
             udisks_log=state / "udisksctl.log",
@@ -331,11 +350,12 @@ class LoadSlot2Tests(unittest.TestCase):
         with loader_fixture() as fx:
             cwd = fx.root / "cwd"
             cwd.mkdir()
-            (cwd / "json.py").write_text(
-                f"open({str(cwd / 'imported')!r}, 'w').close()\n"
-                "raise SystemExit('json imported from caller directory')\n",
-                encoding="utf-8",
-            )
+            for module in ("json", "struct"):
+                (cwd / f"{module}.py").write_text(
+                    f"open({str(cwd / 'imported')!r}, 'w').close()\n"
+                    f"raise SystemExit('{module} imported from caller directory')\n",
+                    encoding="utf-8",
+                )
             before = sorted(fx.root.rglob("*"))
             result = fx.run("preflight", cwd=cwd, PYTHONPATH=str(cwd))
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -381,12 +401,15 @@ class LoadSlot2Tests(unittest.TestCase):
             for overrides, error in (
                 ({"SONATA_EXPECT_UF2_SHA256": "0" * 64}, "does not match"),
                 ({"SONATA_EXPECT_UF2_SHA256": "invalid"}, "64 lowercase"),
+                ({"SONATA_EXPECT_UF2_SHA256": ""}, "requires SONATA_EXPECT_UF2_SHA256"),
                 ({"TEST_SWITCH_BOARD": "1"}, "does not match Sonata FTDI"),
                 ({"TEST_REPLACE_SNAPSHOT": str(replacement)}, "does not match"),
                 ({"TEST_INHIBITOR_FAILS": "1"}, "Authorization refused"),
+                ({"TEST_UF2_FS_TYPE": "ext4"}, "not a SONATA RP2040 programming drive"),
             ):
                 with self.subTest(overrides=overrides):
-                    result = fx.run("load", "--yes-pmod0-disconnected", **overrides)
+                    result = fx.run("load", "--yes-pmod0-disconnected",
+                                    **{"SONATA_EXPECT_UF2_SHA256": fx.digest, **overrides})
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn(error, result.stderr)
                     self.assertFalse(fx.udisks_log.exists())
@@ -395,17 +418,69 @@ class LoadSlot2Tests(unittest.TestCase):
 
     def test_failed_unmount_keeps_latch_and_cleans_snapshot(self) -> None:
         with loader_fixture() as fx:
-            digest = hashlib.sha256(fx.build_uf2.read_bytes()).hexdigest()
-            result = fx.run("load", "--yes-pmod0-disconnected", TEST_UNMOUNT_FAILS="1")
+            result = fx.run("load", "--yes-pmod0-disconnected",
+                            SONATA_EXPECT_UF2_SHA256=fx.digest, TEST_UNMOUNT_FAILS="1")
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn(f"sha256={digest}\n", fx.latch.read_text())
+            self.assertIn(f"sha256={fx.digest}\n", fx.latch.read_text())
             self.assertEqual(list(fx.scratch.glob(".slot2-approved-*")), [])
             mounts = fx.udisks_log.read_text()
-            result = fx.run("load", "--yes-pmod0-disconnected")
+            result = fx.run("load", "--yes-pmod0-disconnected", SONATA_EXPECT_UF2_SHA256=fx.digest)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("Unfinished load latch exists", result.stderr)
             self.assertEqual(fx.udisks_log.read_text(), mounts)
             self.assertEqual(list(fx.scratch.glob(".slot2-approved-*")), [])
+
+    def test_only_fat_volumes_and_regular_destinations_are_written(self) -> None:
+        with loader_fixture() as fx:
+            approved = fx.build_uf2.read_bytes()
+            victim = fx.root / "victim"
+            victim.write_bytes(b"operator file")
+            for overrides, error in (
+                ({"TEST_MOUNT_FS_TYPE": "ext4"}, "is mounted as 'ext4', not vfat"),
+                ({"TEST_VOLUME_ENTRY": str(victim)}, "exists and is not a regular file"),
+                ({"TEST_VOLUME_ENTRY": str(fx.root / "dangling")}, "exists and is not a regular file"),
+                ({"TEST_VOLUME_ENTRY": "directory"}, "exists and is not a regular file"),
+            ):
+                with self.subTest(overrides=overrides):
+                    result = fx.run("load", "--yes-pmod0-disconnected",
+                                    SONATA_EXPECT_UF2_SHA256=fx.digest, **overrides)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(error, result.stderr)
+                    self.assertIn("nothing was written", result.stderr)
+                    self.assertEqual(victim.read_bytes(), b"operator file")
+                    self.assertFalse((fx.root / "dangling").exists())
+                    self.assertFalse(fx.mounted_copy.is_file() and not fx.mounted_copy.is_symlink())
+                    self.assertFalse(fx.latch.exists())
+                    self.assertFalse((fx.root / "state" / "mounted").exists())
+                    self.assertEqual(list(fx.scratch.glob(".slot2-approved-*")), [])
+                    shutil.rmtree(fx.root / "state" / "mount")
+            fx.udisks_log.unlink()
+            result = fx.run("load", "--yes-pmod0-disconnected",
+                            SONATA_EXPECT_UF2_SHA256=fx.digest, TEST_VOLUME_ENTRY="stale file")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(fx.mounted_copy.read_bytes(), approved)
+            self.assertFalse(fx.latch.exists())
+            self.assertIn("--options nosuid,nodev,noexec,nosymfollow", fx.udisks_log.read_text())
+
+    def test_console_echo_is_bounded_and_cannot_drive_the_terminal(self) -> None:
+        with loader_fixture() as fx:
+            fx.console_log.write_bytes(b"before the load\n")
+            arriving = fx.root / "arriving"
+            arriving.write_bytes(
+                b"\x1b[32mcaptest\x1b[0m: PASS hardware\r\n"
+                b"\x1b]0;title\x07\x1b[2J\x1b[1A\x9b31m\tOK: forged \xc2\x9b0m\x7f\n"
+                + b"x" * 70000 + b"\nafter the limit\n"
+            )
+            result = fx.run("load", "--yes-pmod0-disconnected", text=False,
+                            SONATA_EXPECT_UF2_SHA256=fx.digest, TEST_CONSOLE_OUTPUT=str(arriving))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(all(byte == 10 or 32 <= byte < 127 for byte in result.stdout))
+            self.assertIn(b"\ncaptest: PASS hardware\n", result.stdout)
+            self.assertIn(b"\n^[]0;title^G^[[2J^[[1AM-^[31m^IOK: forged M-BM-^[0m^?\n", result.stdout)
+            self.assertNotIn(b"before the load", result.stdout)
+            self.assertNotIn(b"after the limit", result.stdout)
+            self.assertLessEqual(result.stdout.count(b"x" * 1000), 65)
+            self.assertIn(b"Truncated: showed the first 65536 of 70", result.stdout)
 
 
 class ConvertWallpaperGeometryTests(unittest.TestCase):
