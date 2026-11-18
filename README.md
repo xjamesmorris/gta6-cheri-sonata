@@ -142,7 +142,7 @@ The scripts enter the appropriate Nix shell automatically.
 Firmware and simulator shells also provide Pillow, so image conversion and
 its tests do not depend on a host-system Pillow installation.
 
-Evaluating the firmware and simulator shells fetches every input in that
+Evaluating the firmware and simulator shells makes Nix fetch inputs from that
 graph. One of them, a documentation tool that the Sonata software locks to
 `codeberg.org`, is not used here but must still be fetched. If that host
 cannot be reached, run this once first:

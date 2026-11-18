@@ -243,12 +243,16 @@ Not verified:
 
 - The loader's refusal paths ran only in tests with synthetic devices. The
   load recorded below exercised its normal path on a board.
-- The firmware workflow's first run on GitHub-hosted runners stopped during
-  Nix evaluation, before any build: `codeberg.org`, which hosts one
-  transitive flake input, did not resolve. The workflow now fetches that
-  input from a GitHub mirror and checks its locked content hash. Its results
-  on hosted runners are in the repository's Actions history, not in this
-  record.
+
+The firmware workflow's first run on GitHub-hosted runners stopped during Nix
+evaluation, before any build: `codeberg.org`, which hosts one transitive
+flake input, did not resolve. The workflow now fetches that input from a
+GitHub mirror and checks its locked content hash. Its next run, at commit
+`61ce040`, passed. The build job reproduced the hardware image byte-for-byte,
+with the SHA-256 above, an audit result of `true` and 28 Python tests. The
+simulator job passed the exhaustive `cheri-selftest` fixture with the same
+handler-verified totals and matched all 20,480 LCD pixels. Workflow artifacts
+expire after 30 days; later runs are in the repository's Actions history.
 
 ## Version 1.1.0 physical startup: November 18, 2026
 
